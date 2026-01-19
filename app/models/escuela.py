@@ -1,6 +1,7 @@
 from sqlmodel import Field, Relationship
 from app.schemas.escuela import EscuelaBase
 from app.models.rol import Rol
+from app.models.usuario import Usuario
 
 
 class Escuela(EscuelaBase, table=True):
