@@ -1,8 +1,11 @@
+from typing import TYPE_CHECKING
 from sqlmodel import Field, Relationship
 from app.schemas.escuela import EscuelaBase
 from app.models.rol import Rol
-from app.models.usuario import Usuario
 
+
+if TYPE_CHECKING:
+    from .usuario import Usuario
 
 class Escuela(EscuelaBase, table=True):
         idEscuela: int | None = Field(default=None, primary_key=True)
