@@ -6,7 +6,7 @@ from app.core.config import DATABASE_URL
 from app.db.database import engine
 
 # Routers
-from app.routers import auth, usuario, escuela, curso, alumno, responsable, admin
+from app.routers import auth, usuario, escuela, curso, alumno, responsable, admin, director
 
 # Importar modelos para que SQLModel cree tablas
 from app.models.escuela import Escuela
@@ -59,3 +59,4 @@ app.include_router(alumno.router)
 app.include_router(responsable.router) 
 app.include_router(rol.router)
 app.include_router(admin.router)
+app.include_router(director.router)
