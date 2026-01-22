@@ -1,3 +1,4 @@
+from datetime import date
 from sqlmodel import SQLModel, Field
 
 class UsuarioBase(SQLModel):
@@ -7,6 +8,7 @@ class UsuarioBase(SQLModel):
     apellido: str = Field(max_length=100)
     celular: str | None = Field(default=None, max_length=20)
     mailABC: str | None = Field(default=None, max_length=100)
+    fechaNacimiento: date | None = None
 
 class UsuarioPublic(UsuarioBase):
     idUsuario: int
@@ -22,4 +24,5 @@ class UsuarioUpdate(SQLModel):
     celular: str | None =None 
     mailABC: str | None = None
     contrasena: str|None = None
+    fechaNacimiento: date | None = None
 

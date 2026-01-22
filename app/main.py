@@ -1,4 +1,3 @@
-# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
@@ -7,7 +6,7 @@ from app.core.config import DATABASE_URL
 from app.db.database import engine
 
 # Routers
-from app.routers import auth, usuario, escuela, curso, alumno, responsable
+from app.routers import auth, usuario, escuela, curso, alumno, responsable, admin
 
 # Importar modelos para que SQLModel cree tablas
 from app.models.escuela import Escuela
@@ -16,8 +15,6 @@ from app.models.rol import Rol
 from app.models.curso import Curso
 from app.models.alumno import Alumno
 from app.routers import rol
-
-# ✅ NUEVOS MODELOS
 from app.models.responsable import Responsable
 from app.models.alumno_responsable import AlumnoResponsable
 
@@ -53,11 +50,12 @@ def on_startup():
 def health():
     return {"status": "ok"}
 
-# Routers (⚠️ SIN prefix duplicado)
-app.include_router(auth.router)        # /auth/...
-app.include_router(usuario.router)     # /usuarios/...
-app.include_router(escuela.router)     # /escuelas/...
-app.include_router(curso.router)       # /cursos/...
-app.include_router(alumno.router)      # /alumnos/...
-app.include_router(responsable.router) # /responsables/...
+# Routers 
+app.include_router(auth.router)        
+app.include_router(usuario.router)     
+app.include_router(escuela.router)     
+app.include_router(curso.router)       
+app.include_router(alumno.router)      
+app.include_router(responsable.router) 
 app.include_router(rol.router)
+app.include_router(admin.router)
