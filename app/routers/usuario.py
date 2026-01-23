@@ -2,6 +2,8 @@ from typing import Annotated, Sequence
 
 from sqlmodel import select
 from app.dependencies import SessionDep
+from app.models.escuela import Escuela
+from app.models.rol import Rol
 from app.models.usuario import Usuario 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,8 +20,14 @@ def getAllUsuarios(session: SessionDep, offset: int =0, limit: Annotated[int, Qu
 
 @router.post("/usuarios/", response_model=UsuarioPublic)
 def create_usuario(usuario: UsuarioCreate, session: SessionDep) :
-    db_usuario = Usuario.model_validate(usuario)
+    usuarioValidado = usuario.model_dump(exclude={"escuelasCUE", "rol"})
+    db_usuario = Usuario.model_validate(usuarioValidado)
     session.add(db_usuario)
+    session.flush()
+    for escuela in usuario.escuelasCUE:
+        nuevoRol = Rol(descripcion=usuario.rol, idUsuario=db_usuario.idUsuario, CUE=escuela)
+        db_rol = Rol.model_validate(nuevoRol)
+        session.add(db_rol)
     session.commit()
     session.refresh(db_usuario)
     return db_usuario

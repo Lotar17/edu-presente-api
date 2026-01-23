@@ -3,7 +3,6 @@ from sqlmodel import SQLModel, Field
 
 
 class EscuelaBase(SQLModel):
-    CUE: str = Field(max_length=255)
     nombre: str = Field(max_length=255)
     numero: int = Field()
     nivel_educativo: str = Field(max_length=255)
