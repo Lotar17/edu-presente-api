@@ -7,6 +7,7 @@ from app.models.rol import Rol
 if TYPE_CHECKING:
     from app.models.usuario import Usuario
 
+
 class Escuela(SQLModel, table=True):
     __tablename__ = "escuela"
 

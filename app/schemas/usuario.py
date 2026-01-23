@@ -15,6 +15,8 @@ class UsuarioPublic(UsuarioBase):
 
 class UsuarioCreate(UsuarioBase):
     contrasena: str
+    rol: str
+    escuelasCUE: list[str]
 
 class UsuarioUpdate(SQLModel):
     dni: str | None = None

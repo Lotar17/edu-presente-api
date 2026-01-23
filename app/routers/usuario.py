@@ -1,5 +1,13 @@
 from typing import Annotated
 
+<<<<<<< HEAD
+=======
+from sqlmodel import select
+from app.dependencies import SessionDep
+from app.models.escuela import Escuela
+from app.models.rol import Rol
+from app.models.usuario import Usuario 
+>>>>>>> dev
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
 
@@ -11,10 +19,14 @@ from app.schemas.usuario import (
     UsuarioUpdate
 )
 
+<<<<<<< HEAD
 router = APIRouter(
     prefix="/usuarios",
     tags=["Usuarios"]
 )
+=======
+router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
+>>>>>>> dev
 
 # =====================================================
 # GET /usuarios → Listar usuarios (para Admin)
@@ -31,6 +43,7 @@ def get_all_usuarios(
     return usuarios
 
 
+<<<<<<< HEAD
 # =====================================================
 # POST /usuarios → Crear usuario (registro / admin)
 # =====================================================
@@ -42,7 +55,21 @@ def create_usuario(
     # Crear instancia del modelo
     db_usuario = Usuario.model_validate(usuario)
 
+=======
+@router.post("/usuarios/", response_model=UsuarioPublic)
+def create_usuario(usuario: UsuarioCreate, session: SessionDep) :
+    usuario_existente = session.get(Usuario, usuario.dni)
+    if usuario_existente:
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con este DNI")
+    usuarioValidado = usuario.model_dump(exclude={"escuelasCUE", "rol"})
+    db_usuario = Usuario.model_validate(usuarioValidado)
+>>>>>>> dev
     session.add(db_usuario)
+    session.flush()
+    for escuela in usuario.escuelasCUE:
+        nuevoRol = Rol(descripcion=usuario.rol, idUsuario=db_usuario.idUsuario, CUE=escuela)
+        db_rol = Rol.model_validate(nuevoRol)
+        session.add(db_rol)
     session.commit()
     session.refresh(db_usuario)
 
@@ -59,10 +86,14 @@ def read_usuario(
 ):
     usuario = session.get(Usuario, usuario_id)
     if not usuario:
+<<<<<<< HEAD
         raise HTTPException(
             status_code=404,
             detail="Usuario no encontrado"
         )
+=======
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+>>>>>>> dev
     return usuario
 
 
@@ -77,11 +108,15 @@ def update_usuario(
 ):
     usuario_db = session.get(Usuario, usuario_id)
     if not usuario_db:
+<<<<<<< HEAD
         raise HTTPException(
             status_code=404,
             detail="Usuario no encontrado"
         )
 
+=======
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+>>>>>>> dev
     usuario_data = usuario.model_dump(exclude_unset=True)
     usuario_db.sqlmodel_update(usuario_data)
 

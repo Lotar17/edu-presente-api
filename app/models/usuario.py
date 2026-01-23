@@ -1,7 +1,12 @@
+<<<<<<< HEAD
 # app/models/usuario.py
 from typing import Optional, TYPE_CHECKING
 from sqlmodel import SQLModel, Field, Relationship
 
+=======
+from sqlmodel import Field, Relationship
+from typing import TYPE_CHECKING
+>>>>>>> dev
 from app.models.rol import Rol
 
 if TYPE_CHECKING:
@@ -15,6 +20,14 @@ class Usuario(SQLModel, table=True):
     cuil: Optional[str] = None
     mailABC: Optional[str] = None
 
+<<<<<<< HEAD
+=======
+if TYPE_CHECKING:
+    from .escuela import Escuela
+
+class Usuario(UsuarioBase, table=True):
+    idUsuario: int | None = Field(default=None, primary_key=True)
+>>>>>>> dev
     contrasena: str
     celular: Optional[str] = None
     nombre: Optional[str] = None
