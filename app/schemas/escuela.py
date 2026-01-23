@@ -18,7 +18,7 @@ class EscuelaPublic(EscuelaBase):
     pass
 
 class EscuelaCreate(EscuelaBase):
-    pass
+    CUE: str = Field(min_length=9, max_length=9)
 
 class EscuelaUpdate(SQLModel):
     CUE: str | None = None

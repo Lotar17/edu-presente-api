@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import create_db_and_tables
 from app.routers import usuario
+from app.routers import escuela
 
 app = FastAPI()
 
@@ -17,5 +18,6 @@ def on_startup():
 
 
 app.include_router(usuario.router)
+app.include_router(escuela.router)
 
 

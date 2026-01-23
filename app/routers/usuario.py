@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.usuario import UsuarioCreate, UsuarioPublic, UsuarioUpdate
 
-router = APIRouter()
+router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 
 @router.get("/usuarios/", response_model=list[UsuarioPublic])
@@ -20,6 +20,9 @@ def getAllUsuarios(session: SessionDep, offset: int =0, limit: Annotated[int, Qu
 
 @router.post("/usuarios/", response_model=UsuarioPublic)
 def create_usuario(usuario: UsuarioCreate, session: SessionDep) :
+    usuario_existente = session.get(Usuario, usuario.dni)
+    if usuario_existente:
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con este DNI")
     usuarioValidado = usuario.model_dump(exclude={"escuelasCUE", "rol"})
     db_usuario = Usuario.model_validate(usuarioValidado)
     session.add(db_usuario)
@@ -36,14 +39,14 @@ def create_usuario(usuario: UsuarioCreate, session: SessionDep) :
 def read_usuario(usuario_id:int, session: SessionDep):
     usuario = session.get(Usuario, usuario_id)
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario not found")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
 
 @router.patch("/usuarios/{usuario_id}", response_model=UsuarioPublic)
 def update_usuario(usuario_id: int, usuario: UsuarioUpdate, session: SessionDep):
     usuario_db = session.get(Usuario, usuario_id)
     if not usuario_db:
-        raise HTTPException(status_code=404, detail="Hero not found")
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     usuario_data = usuario.model_dump(exclude_unset=True)
     usuario_db.sqlmodel_update(usuario_data)
     session.add(usuario_db)
