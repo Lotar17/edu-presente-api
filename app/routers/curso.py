@@ -1,9 +1,9 @@
 from typing import Annotated, Sequence
-from sqlmodel import select
 from fastapi import APIRouter, HTTPException, Query
 from app.dependencies import SessionDep
 from app.models.curso import Curso
 from app.schemas.curso import CursoCreate, CursoPublic, CursoUpdate
+from app.services.curso_service import get_all_cursos, get_one_curso, add_curso
 
 router = APIRouter(prefix="/cursos", tags=["Cursos"])
 
@@ -14,23 +14,20 @@ def getAllCursos(
     limit: Annotated[int, Query(le=100)] = 100
 ):
     """Obtiene la lista de todos los cursos con paginación."""
-    statement = select(Curso).offset(offset).limit(limit)
-    cursos = session.exec(statement).all()
-    return cursos
+    return get_all_cursos(session, offset, limit)
 
 @router.post("/", response_model=CursoPublic)
 def create_curso(curso: CursoCreate, session: SessionDep):
     """Crea un nuevo curso."""
-    db_curso = Curso.model_validate(curso)
-    session.add(db_curso)
-    session.commit()
-    session.refresh(db_curso)
-    return db_curso
+    curso_creado = add_curso(session, curso)
+    if not curso_creado:
+        raise HTTPException(status_code=404, detail="El rol ingresado no se encuentra habilitado")
+    return curso_creado
 
 @router.get("/{idCurso}", response_model=CursoPublic)
 def read_curso(idCurso: int, session: SessionDep):
     """Obtiene un curso específico por su ID."""
-    db_curso = session.get(Curso, idCurso)
+    db_curso = get_one_curso(idCurso, session)
     if not db_curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     return db_curso
@@ -38,7 +35,7 @@ def read_curso(idCurso: int, session: SessionDep):
 @router.patch("/{idCurso}", response_model=CursoPublic)
 def update_curso(idCurso: int, curso: CursoUpdate, session: SessionDep):
     """Actualiza los datos de un curso de forma parcial (PATCH)."""
-    db_curso = session.get(Curso, idCurso)
+    db_curso = get_one_curso(idCurso, session)
     if not db_curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     

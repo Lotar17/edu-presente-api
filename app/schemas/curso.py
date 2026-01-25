@@ -11,7 +11,7 @@ class CursoPublic(CursoBase):
     idCurso: int
 
 class CursoCreate(CursoBase):
-    idUsuario: str
+    idUsuario: int
     CUE: str
     password: str 
 
