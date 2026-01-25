@@ -11,6 +11,8 @@ class CursoPublic(CursoBase):
     idCurso: int
 
 class CursoCreate(CursoBase):
+    idUsuario: str
+    CUE: str
     password: str 
 
 class CursoUpdate(SQLModel):
@@ -18,5 +20,7 @@ class CursoUpdate(SQLModel):
     cicloLectivo: str | None = None
     division: str | None = None
     password: str | None = None
+    idUsuario: str | None = None
+    CUE: str | None = None
 
 
