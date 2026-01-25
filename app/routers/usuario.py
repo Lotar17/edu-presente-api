@@ -1,6 +1,5 @@
 from typing import Annotated, Sequence
 
-from sqlmodel import select
 from app.dependencies import SessionDep
 from app.models.escuela import Escuela
 from app.models.rol import Rol
@@ -8,57 +7,46 @@ from app.models.usuario import Usuario
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.usuario import UsuarioCreate, UsuarioPublic, UsuarioUpdate
+from app.services.usuario_service import add_usuario, change_usuario, delete_one_usuario, get_all_usuarios, get_one_usuario, get_usuario_by_dni
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 
 @router.get("/usuarios/", response_model=list[UsuarioPublic])
 def getAllUsuarios(session: SessionDep, offset: int =0, limit: Annotated[int, Query(le=100)]=100) :
-    usuarios = session.exec(select(Usuario).offset(offset).limit(limit)).all()
+    usuarios = get_all_usuarios(session, offset, limit)
     return usuarios
 
 
 @router.post("/usuarios/", response_model=UsuarioPublic)
 def create_usuario(usuario: UsuarioCreate, session: SessionDep) :
-    usuario_existente = session.get(Usuario, usuario.dni)
+    usuario_existente = get_usuario_by_dni(session, usuario.dni)
     if usuario_existente:
         raise HTTPException(status_code=400, detail="Ya existe un usuario con este DNI")
-    usuarioValidado = usuario.model_dump(exclude={"escuelasCUE", "rol"})
-    db_usuario = Usuario.model_validate(usuarioValidado)
-    session.add(db_usuario)
-    session.flush()
-    for escuela in usuario.escuelasCUE:
-        nuevoRol = Rol(descripcion=usuario.rol, idUsuario=db_usuario.idUsuario, CUE=escuela)
-        db_rol = Rol.model_validate(nuevoRol)
-        session.add(db_rol)
-    session.commit()
-    session.refresh(db_usuario)
+    db_usuario = add_usuario(usuario, session)
     return db_usuario
 
 @router.get("/usuarios/{usuario_id}", response_model=UsuarioPublic)
 def read_usuario(usuario_id:int, session: SessionDep):
-    usuario = session.get(Usuario, usuario_id)
+    usuario = get_one_usuario(usuario_id, session)
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
 
 @router.patch("/usuarios/{usuario_id}", response_model=UsuarioPublic)
 def update_usuario(usuario_id: int, usuario: UsuarioUpdate, session: SessionDep):
-    usuario_db = session.get(Usuario, usuario_id)
+    usuario_db = get_one_usuario(usuario_id, session)
     if not usuario_db:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    usuario_data = usuario.model_dump(exclude_unset=True)
-    usuario_db.sqlmodel_update(usuario_data)
-    session.add(usuario_db)
-    session.commit()
-    session.refresh(usuario_db)
+    usuario_db = change_usuario(usuario, usuario_db, session)
     return usuario_db
 
 @router.delete("/usuarios/{usuario_id}")
 def delete_usuario(usuario_id:int, session: SessionDep):
-    usuario = session.get(Usuario, usuario_id)
+    usuario = get_one_usuario(usuario_id, session)
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario not found")
-    session.delete(usuario)
-    session.commit()
+    delete_one_usuario(usuario, session)
     return {"ok": True}
+
+
