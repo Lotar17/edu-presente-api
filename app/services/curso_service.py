@@ -6,7 +6,7 @@ from app.core.security import get_password_hash
 from app.models.curso import Curso
 from app.dependencies import SessionDep
 
-from app.schemas.curso import CursoCreate
+from app.schemas.curso import CursoCreate, CursoUpdate
 from app.services.rol_service import get_one_rol
 
 logger = logging.getLogger()
@@ -39,6 +39,18 @@ def delete_one_curso(idCurso: int, db: SessionDep):
         raise Exception("Curso no encontrado")
     db.delete(db_curso)
     db.commit()
+
+def change_curso(curso_nuevo: CursoUpdate, curso_existente: Curso, db: SessionDep):
+    # Extraemos solo los campos presentes en la solicitud JSON
+    curso_data = curso_nuevo.model_dump(exclude_unset=True)
+    if curso_nuevo.password:
+        curso_data["password"] = get_password_hash(curso_nuevo.password)
+    # Actualización atómica de SQLModel
+    curso_existente.sqlmodel_update(curso_data)
+    db.add(curso_existente)
+    db.commit()
+    db.refresh(curso_existente)
+    return curso_existente
 
 
 

@@ -3,8 +3,9 @@ from fastapi import APIRouter, HTTPException, Query
 from app.dependencies import SessionDep
 from app.models.curso import Curso
 from app.schemas.curso import CursoCreate, CursoPublic, CursoUpdate
-from app.services.curso_service import delete_one_curso, get_all_cursos, get_one_curso, add_curso
+from app.services.curso_service import change_curso, delete_one_curso, get_all_cursos, get_one_curso, add_curso
 from app.services.rol_service import get_one_rol
+from app.services.usuario_service import change_usuario
 
 router = APIRouter(prefix="/cursos", tags=["Cursos"])
 
@@ -39,16 +40,7 @@ def update_curso(idCurso: int, curso: CursoUpdate, session: SessionDep):
     db_curso = get_one_curso(idCurso, session)
     if not db_curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
-    
-    # Extraemos solo los campos presentes en la solicitud JSON
-    curso_data = curso.model_dump(exclude_unset=True)
-    
-    # Actualización atómica de SQLModel
-    db_curso.sqlmodel_update(curso_data)
-    
-    session.add(db_curso)
-    session.commit()
-    session.refresh(db_curso)
+    db_curso = change_curso(curso_nuevo=curso, curso_existente=db_curso, db=session)
     return db_curso
 
 @router.delete("/{idCurso}")
