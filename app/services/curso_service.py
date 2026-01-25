@@ -1,5 +1,5 @@
 from typing import Annotated
-from sqlmodel import select
+from sqlmodel import Session, select
 import logging
 from fastapi import Query
 from app.core.security import get_password_hash
@@ -32,6 +32,13 @@ def add_curso(db: SessionDep, curso: CursoCreate):
 def get_one_curso(idCurso: int, db: SessionDep):
     db_curso = db.get(Curso, idCurso)
     return db_curso
+
+def delete_one_curso(idCurso: int, db: SessionDep):
+    db_curso = db.get(Curso, idCurso)
+    if not db_curso:
+        raise Exception("Curso no encontrado")
+    db.delete(db_curso)
+    db.commit()
 
 
 

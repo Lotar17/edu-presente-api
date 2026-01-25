@@ -3,7 +3,8 @@ from fastapi import APIRouter, HTTPException, Query
 from app.dependencies import SessionDep
 from app.models.curso import Curso
 from app.schemas.curso import CursoCreate, CursoPublic, CursoUpdate
-from app.services.curso_service import get_all_cursos, get_one_curso, add_curso
+from app.services.curso_service import delete_one_curso, get_all_cursos, get_one_curso, add_curso
+from app.services.rol_service import get_one_rol
 
 router = APIRouter(prefix="/cursos", tags=["Cursos"])
 
@@ -53,10 +54,8 @@ def update_curso(idCurso: int, curso: CursoUpdate, session: SessionDep):
 @router.delete("/{idCurso}")
 def delete_curso(idCurso: int, session: SessionDep):
     """Elimina un curso por su ID."""
-    db_curso = session.get(Curso, idCurso)
-    if not db_curso:
+    try:
+        delete_one_curso(idCurso, session)
+    except Exception:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
-    
-    session.delete(db_curso)
-    session.commit()
     return {"ok": True, "message": f"Curso {idCurso} eliminado correctamente"}
