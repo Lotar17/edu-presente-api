@@ -10,6 +10,7 @@ from app.models.curso import Curso
 from app.models.alumno import Alumno
 from app.schemas.escuela import EscuelaCreate, EscuelaPublic, EscuelaUpdate
 from app.schemas.usuario import UsuarioPublic
+from app.schemas.alumno import AlumnoCreate
 
 router = APIRouter(prefix="/escuelas", tags=["Escuelas"])
 
@@ -171,5 +172,59 @@ def get_alumnos_por_curso(curso_id: int, session: SessionDep):
         statement = select(Alumno).where(Alumno.idCurso == curso_id)
         alumnos = session.exec(statement).all()
         return alumnos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/{escuela_id}/alumnos")
+def get_alumnos_por_escuela(escuela_id: int, session: SessionDep):
+    try:
+        # Hacemos un JOIN entre Alumno y Curso
+        statement = (
+            select(Alumno, Curso)
+            .join(Curso, Alumno.idCurso == Curso.idCurso)
+            .where(Curso.idEscuela == escuela_id)
+        )
+        resultados = session.exec(statement).all()
+
+        lista_alumnos = []
+        for alumno, curso in resultados:
+            lista_alumnos.append({
+                "idAlumno": alumno.idAlumno,
+                "nombre": alumno.nombre,
+                "apellido": alumno.apellido,
+                "dni": alumno.dni,
+                "estado": getattr(alumno, "estado", "Activo"), 
+                "idCurso": curso.idCurso,
+                "nombre_curso": f"{curso.nombre} {curso.division} ({curso.turno})"
+            })
+
+        return lista_alumnos
+
+    except Exception as e:
+        print(f"💥 Error en backend: {e}") # Esto te va a mostrar el error real en la consola si falla de nuevo
+        raise HTTPException(status_code=500, detail=str(e))   
+    
+@router.post("/alumnos", response_model=Alumno)
+def crear_alumno(alumno_data: AlumnoCreate, session: SessionDep):
+    try:
+        curso = session.get(Curso, alumno_data.cursoId)
+        if not curso:
+            raise HTTPException(status_code=404, detail="El curso seleccionado no existe")
+        
+        nuevo_alumno = Alumno(
+            idCurso=alumno_data.cursoId,  
+            nombre=alumno_data.nombre,
+            apellido=alumno_data.apellido,
+            dni=alumno_data.dni,
+            fechaNac=alumno_data.fechaNac,     
+            fechaIngreso=alumno_data.fechaIngreso,
+            direccion=alumno_data.direccion
+        )
+        
+        session.add(nuevo_alumno)
+        session.commit()
+        session.refresh(nuevo_alumno)
+        
+        return nuevo_alumno
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
