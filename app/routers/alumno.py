@@ -13,10 +13,10 @@ from app.schemas.alumno import AlumnoCreate, AlumnoPublic
 from app.schemas.alumno_responsables import (
     AlumnoDetalleConResponsables,
     ResponsableConParentesco,
+    CursoLite, 
 )
 
 router = APIRouter(prefix="/alumnos", tags=["Alumnos"])
-
 
 # --------------------------------------------------
 # LISTAR ALUMNOS (opcional por curso)
@@ -49,11 +49,17 @@ def get_alumno(session: SessionDep, alumno_id: int):
 # --------------------------------------------------
 # OBTENER ALUMNO + RESPONSABLES + PARENTESCO ✅
 # --------------------------------------------------
+# --------------------------------------------------
+# OBTENER ALUMNO + CURSO + RESPONSABLES + PARENTESCO ✅
+# --------------------------------------------------
 @router.get("/{alumno_id}/detalle", response_model=AlumnoDetalleConResponsables)
 def get_alumno_detalle(session: SessionDep, alumno_id: int):
     alumno = session.get(Alumno, alumno_id)
     if not alumno:
         raise HTTPException(status_code=404, detail="Alumno no encontrado")
+
+    # ✅ Traer curso (tiene nombre/division/cicloLectivo)
+    curso = session.get(Curso, alumno.idCurso)
 
     rows = session.exec(
         select(Responsable, AlumnoResponsable.parentesco)
@@ -72,10 +78,13 @@ def get_alumno_detalle(session: SessionDep, alumno_id: int):
             dni=r.dni,
             telefono=r.telefono,
             correo_electronico=r.correo_electronico,
+            direccion=getattr(r, "direccion", None),  # ✅ si Responsable tiene 'direccion'
             parentesco=parentesco,
         )
         for (r, parentesco) in rows
     ]
+
+    responsable_principal = responsables[0] if responsables else None
 
     return AlumnoDetalleConResponsables(
         idAlumno=alumno.idAlumno,
@@ -86,6 +95,17 @@ def get_alumno_detalle(session: SessionDep, alumno_id: int):
         fechaNac=alumno.fechaNac,
         fechaIngreso=alumno.fechaIngreso,
         direccion=alumno.direccion,
+
+        curso=(
+            CursoLite(
+                idCurso=curso.idCurso,
+                nombre=curso.nombre,
+                division=curso.division,
+                cicloLectivo=curso.cicloLectivo,
+            ) if curso else None
+        ),
+
+        responsablePrincipal=responsable_principal,
         responsables=responsables,
     )
 
