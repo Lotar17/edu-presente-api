@@ -16,6 +16,7 @@ from app.routers import (
     rol,
     admin,
     director,
+    asistencia,
 )
 
 # Importar modelos para que SQLModel cree tablas
@@ -72,3 +73,4 @@ app.include_router(responsable.router)
 app.include_router(rol.router)
 app.include_router(admin.router)
 app.include_router(director.router)
+app.include_router(asistencia.router)

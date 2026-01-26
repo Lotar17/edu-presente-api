@@ -1,11 +1,12 @@
 # app/models/escuela.py
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 from sqlmodel import SQLModel, Field, Relationship
 
 from app.models.rol import Rol
 
 if TYPE_CHECKING:
     from app.models.usuario import Usuario
+    from app.models.curso import Curso
 
 
 class Escuela(SQLModel, table=True):
@@ -27,7 +28,11 @@ class Escuela(SQLModel, table=True):
     provincia: Optional[str] = None
     localidad: Optional[str] = None
 
-    usuarios: list["Usuario"] = Relationship(
+    # ✅ usuarios (many-to-many con Rol)
+    usuarios: List["Usuario"] = Relationship(
         back_populates="escuelas",
         link_model=Rol
     )
+
+    # ✅ cursos (one-to-many)
+    cursos: List["Curso"] = Relationship(back_populates="escuela")

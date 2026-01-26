@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+# app/models/alumno.py
+from typing import Optional, TYPE_CHECKING, List
 from datetime import date
 
 from sqlmodel import SQLModel, Field, Relationship
@@ -8,6 +9,7 @@ from app.models.alumno_responsable import AlumnoResponsable
 
 if TYPE_CHECKING:
     from app.models.responsable import Responsable
+    from app.models.curso import Curso
 
 
 class Alumno(SQLModel, table=True):
@@ -21,17 +23,16 @@ class Alumno(SQLModel, table=True):
     apellido: str
     dni: str
 
-    # ✅ Mapeo a columnas existentes en DB
     fechaNac: date = Field(sa_column=Column("fecha_nacimiento", Date, nullable=False))
     fechaIngreso: date = Field(sa_column=Column("fecha_ingreso", Date, nullable=False))
 
     direccion: Optional[str] = None
 
-    # ✅ Relación many-to-many con Responsable, guardando parentesco en la tabla puente
-    responsables: list["Responsable"] = Relationship(
+    # ✅ Relación many-to-many con Responsable
+    responsables: List["Responsable"] = Relationship(
         back_populates="alumnos",
         link_model=AlumnoResponsable
     )
 
-    # (opcional) si querés estado, hay que crear columna en DB
-    # estado: str = "Activo"
+    # ✅ Relación curso (many-to-one)
+    curso: Optional["Curso"] = Relationship(back_populates="alumnos")

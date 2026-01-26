@@ -1,16 +1,13 @@
-<<<<<<< HEAD
 # app/models/usuario.py
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 from sqlmodel import SQLModel, Field, Relationship
 
-=======
-from sqlmodel import Field, Relationship
-from typing import TYPE_CHECKING
->>>>>>> dev
 from app.models.rol import Rol
 
 if TYPE_CHECKING:
     from app.models.escuela import Escuela
+    from app.models.curso import Curso
+
 
 class Usuario(SQLModel, table=True):
     __tablename__ = "usuario"
@@ -20,20 +17,16 @@ class Usuario(SQLModel, table=True):
     cuil: Optional[str] = None
     mailABC: Optional[str] = None
 
-<<<<<<< HEAD
-=======
-if TYPE_CHECKING:
-    from .escuela import Escuela
-
-class Usuario(UsuarioBase, table=True):
-    idUsuario: int | None = Field(default=None, primary_key=True)
->>>>>>> dev
     contrasena: str
     celular: Optional[str] = None
     nombre: Optional[str] = None
     apellido: Optional[str] = None
 
-    escuelas: list["Escuela"] = Relationship(
+    # many-to-many Usuario <-> Escuela vía Rol (ya lo tenías)
+    escuelas: List["Escuela"] = Relationship(
         back_populates="usuarios",
         link_model=Rol
     )
+
+    # ✅ NUEVO: 1 Usuario (docente) -> muchos Cursos
+    cursos: List["Curso"] = Relationship(back_populates="docente")
