@@ -6,6 +6,8 @@ from app.dependencies import SessionDep
 from app.models.escuela import Escuela
 from app.models.usuario import Usuario
 from app.models.rol import Rol
+from app.models.curso import Curso
+from app.models.alumno import Alumno
 from app.schemas.escuela import EscuelaCreate, EscuelaPublic, EscuelaUpdate
 from app.schemas.usuario import UsuarioPublic
 
@@ -122,6 +124,29 @@ def get_docentes_activos(escuela_id: int, session: SessionDep):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/{escuela_id}/cursos")
+def get_cursos_por_escuela(escuela_id: int, session: SessionDep):
+    try:
+        statement = select(Curso).where(Curso.idEscuela == escuela_id)
+        cursos = session.exec(statement).all()
+        
+        resultado = []
+        for curso in cursos:
+            cantidad = session.exec(
+                select(func.count())
+                .select_from(Alumno)
+                .where(Alumno.idCurso == curso.idCurso)
+            ).one()
+            
+            curso_dict = curso.model_dump()
+            curso_dict["cantidadAlumnos"] = cantidad 
+            resultado.append(curso_dict)
+            
+        return resultado
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{escuela_id}/docentes/{usuario_id}/aprobar")
 def aprobar_docente(escuela_id: int, usuario_id: int, session: SessionDep):
@@ -139,3 +164,12 @@ def rechazar_docente(escuela_id: int, usuario_id: int, session: SessionDep):
     session.delete(rol)
     session.commit()
     return {"message": "Rechazado"}
+
+@router.get("/cursos/{curso_id}/alumnos", response_model=list[Alumno])
+def get_alumnos_por_curso(curso_id: int, session: SessionDep):
+    try:
+        statement = select(Alumno).where(Alumno.idCurso == curso_id)
+        alumnos = session.exec(statement).all()
+        return alumnos
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
