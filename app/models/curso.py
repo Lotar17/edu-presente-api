@@ -25,11 +25,8 @@ class Curso(SQLModel, table=True):
 
     nombre: str = Field(max_length=50)
     division: str = Field(max_length=50)
-
+    turno: str = Field(default="Mañana", max_length=20)
     cicloLectivo: int = Field(sa_column=Column("ciclo_lectivo", Integer, nullable=False))
-
     escuela: Optional["Escuela"] = Relationship(back_populates="cursos")
     alumnos: List["Alumno"] = Relationship(back_populates="curso")
-
-    # ✅ NUEVO: relación con Usuario (docente)
     docente: Optional["Usuario"] = Relationship(back_populates="cursos")
