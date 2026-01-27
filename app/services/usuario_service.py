@@ -1,6 +1,7 @@
 from app.core.security import get_password_hash
 from app.models.usuario import Usuario
 from app.models.rol import Rol
+from enum import Enum
 from typing import Annotated
 from sqlmodel import select
 from fastapi import Query
@@ -14,7 +15,8 @@ def get_all_usuarios(db: SessionDep, offset: int, limit: Annotated[int, Query(le
     return usuarios
 
 def get_usuario_by_dni(db: SessionDep, dni: str):
-    usuario_existente = db.get(Usuario, dni)
+    statement = select(Usuario).where(Usuario.dni == dni)
+    usuario_existente = db.exec(statement).first()
     return usuario_existente
     
 
