@@ -6,9 +6,15 @@ class RolEstado(Enum):
     Pendiente = "Pendiente"
     Rechazado = "Rechazado"
 
+class RolDescripcion(Enum):
+    Director = "Director"
+    Docente = "Docente"
+    Administrador = "Administrador"
+    Asistente = "Asistente"
+
 
 class RolBase(SQLModel):
-    descripcion: str = Field(max_length=255)
+    descripcion: RolDescripcion = Field()
     estado: RolEstado = Field(default=RolEstado.Pendiente)
 
 class RolPublic(RolBase):
