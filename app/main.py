@@ -4,6 +4,7 @@ from app.db.database import create_db_and_tables
 from app.routers import usuario
 from app.routers import escuela
 from app.routers import curso
+from app.routers import auth
 
 app = FastAPI()
 
@@ -21,5 +22,6 @@ def on_startup():
 app.include_router(usuario.router)
 app.include_router(escuela.router)
 app.include_router(curso.router)
+app.include_router(auth.router)
 
 
