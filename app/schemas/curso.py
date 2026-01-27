@@ -1,23 +1,28 @@
 # app/schemas/curso.py
-from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
+from sqlmodel import SQLModel, Field
 
-class CursoCreate(BaseModel):
-    escuelaId: int
-    nombre: str
-    grado: Optional[str] = None
-    division: Optional[str] = None
-    turno: Optional[str] = None
+
+class CursoCreate(SQLModel):
+    escuelaId: int  # lo que manda el front
+    nombre: str = Field(max_length=50)
+    division: str = Field(max_length=50)
     cicloLectivo: int
+    docenteId: Optional[int] = None
 
-class CursoPublic(BaseModel):
-    id: int = Field(alias="idCurso")
-    escuelaId: int = Field(alias="idEscuela")
 
-    nombre: str
-    grado: Optional[str] = None
+class CursoUpdate(SQLModel):
+    escuelaId: Optional[int] = None
+    nombre: Optional[str] = None
     division: Optional[str] = None
-    turno: Optional[str] = None
-    cicloLectivo: int
+    cicloLectivo: Optional[int] = None
+    docenteId: Optional[int] = None
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+class CursoPublic(SQLModel):
+    idCurso: int
+    idEscuela: int
+    nombre: str
+    division: str
+    cicloLectivo: int
+    idDocente: Optional[int] = None

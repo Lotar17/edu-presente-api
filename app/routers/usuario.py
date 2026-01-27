@@ -5,20 +5,11 @@ from sqlmodel import select
 
 from app.dependencies import SessionDep
 from app.models.usuario import Usuario
-from app.schemas.usuario import (
-    UsuarioCreate,
-    UsuarioPublic,
-    UsuarioUpdate
-)
+from app.schemas.usuario import UsuarioCreate, UsuarioPublic, UsuarioUpdate
 
-router = APIRouter(
-    prefix="/usuarios",
-    tags=["Usuarios"]
-)
+router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
-# =====================================================
-# GET /usuarios → Listar usuarios (para Admin)
-# =====================================================
+
 @router.get("/", response_model=list[UsuarioPublic])
 def get_all_usuarios(
     session: SessionDep,
@@ -31,27 +22,18 @@ def get_all_usuarios(
     return usuarios
 
 
-# =====================================================
-# POST /usuarios → Crear usuario (registro / admin)
-# =====================================================
 @router.post("/", response_model=UsuarioPublic, status_code=201)
 def create_usuario(
     usuario: UsuarioCreate,
     session: SessionDep
 ):
-    # Crear instancia del modelo
     db_usuario = Usuario.model_validate(usuario)
-
     session.add(db_usuario)
     session.commit()
     session.refresh(db_usuario)
-
     return db_usuario
 
 
-# =====================================================
-# GET /usuarios/{id} → Obtener usuario por ID
-# =====================================================
 @router.get("/{usuario_id}", response_model=UsuarioPublic)
 def read_usuario(
     usuario_id: int,
@@ -59,16 +41,10 @@ def read_usuario(
 ):
     usuario = session.get(Usuario, usuario_id)
     if not usuario:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
 
 
-# =====================================================
-# PATCH /usuarios/{id} → Actualizar usuario
-# =====================================================
 @router.patch("/{usuario_id}", response_model=UsuarioPublic)
 def update_usuario(
     usuario_id: int,
@@ -77,10 +53,7 @@ def update_usuario(
 ):
     usuario_db = session.get(Usuario, usuario_id)
     if not usuario_db:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     usuario_data = usuario.model_dump(exclude_unset=True)
     usuario_db.sqlmodel_update(usuario_data)
@@ -88,13 +61,9 @@ def update_usuario(
     session.add(usuario_db)
     session.commit()
     session.refresh(usuario_db)
-
     return usuario_db
 
 
-# =====================================================
-# DELETE /usuarios/{id} → Eliminar usuario
-# =====================================================
 @router.delete("/{usuario_id}", status_code=204)
 def delete_usuario(
     usuario_id: int,
@@ -102,10 +71,7 @@ def delete_usuario(
 ):
     usuario = session.get(Usuario, usuario_id)
     if not usuario:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     session.delete(usuario)
     session.commit()
