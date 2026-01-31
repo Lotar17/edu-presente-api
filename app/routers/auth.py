@@ -16,27 +16,15 @@ logger = logging.getLogger()
 
 @router.post("/", response_model=LoginResponse)
 def login(data: LoginRequest, session: SessionDep):
+    # 1) Buscar usuario
     user = get_usuario_by_dni(db=session, dni=data.dni)
     
-    if not user:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado")
-
-    logger.info(f"Intento login: {user.dni} - Pass DB: {user.contrasena}")
-    password_valida = False
-
-    if user.contrasena == data.password:
-        password_valida = True
-    else:
-        try:
-            if verify_password(plain_password=data.password, hashed_password=user.contrasena):
-                password_valida = True
-        except Exception as e:
-            logger.warning(f"La contraseña en DB no es un hash válido: {e}")
-            pass
-
-    if not password_valida:
+    # 2) Validación 
+    if not user or not verify_password(plain_password=data.password, hashed_password=user.contrasena):
+        logger.warning(f"Login fallido para DNI: {data.dni}")
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
-    
+
+    # 3) Traer roles + escuela
     try:
         statement = (
             select(Rol, Escuela)
@@ -44,7 +32,8 @@ def login(data: LoginRequest, session: SessionDep):
             .where(Rol.idUsuario == user.idUsuario)
             .where(
                 or_(
-                    Rol.estado == "Activo",   
+                    Rol.estado == "Activo",
+                    Rol.descripcion == "Administrador" 
                 )
             )
         )
@@ -52,7 +41,7 @@ def login(data: LoginRequest, session: SessionDep):
         
     except Exception as e:
         logger.error(f"Error buscando roles: {e}")
-        raise HTTPException(status_code=500, detail=f"Error interno al buscar roles: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno al buscar roles.")
 
     opciones_validas: list[OpcionRol] = []
     
@@ -69,6 +58,8 @@ def login(data: LoginRequest, session: SessionDep):
     if not opciones_validas:
         logger.warning(f"Usuario {user.idUsuario} sin roles activos válidos.")
         raise HTTPException(status_code=403, detail="Usuario pendiente de aprobación o sin roles asignados.")
+
+    logger.info(f"Login exitoso: {user.dni}")
 
     return LoginResponse(
         mensaje="Login exitoso",
