@@ -40,9 +40,21 @@ def get_directores_estado_pendiente(session: SessionDep):
     for rol, director in resultados:
         director_db = director.model_dump()
         rol_db = RolPublic.model_validate(rol)
-        docente_rol = Usuario_Roles(**director_db, rol=rol_db)
-        director_roles.append(docente_rol)
+        director_rol = Usuario_Roles(**director_db, rol=rol_db)
+        director_roles.append(director_rol)
     return director_roles
 
+@router.get("/administradores/pendientes", response_model=List[Usuario_Roles])
+def get_administradores_estado_pendiente(session: SessionDep):
+    """Obtener todos los roles con descripcion 'Administrador' cuyo estado sea 'Pendiente'. Devuelve una lista que contiene administradores. Cada admiinstrador contiene su rol"""
+    rol_elegido = RolDescripcion.Administrador
+    resultados = get_roles_pendientes(db=session, rol=rol_elegido)
+    administrador_roles = []
+    for rol, administrador in resultados:
+        administrador_db = administrador.model_dump()
+        rol_db = RolPublic.model_validate(rol)
+        administrador_rol = Usuario_Roles(**administrador_db, rol=rol_db)
+        administrador_roles.append(administrador_rol)
+    return administrador_roles
 
 
