@@ -18,27 +18,64 @@ logger = logging.getLogger()
 def login(data: LoginRequest, session: SessionDep):
     # 1) Buscar usuario
     user = get_usuario_by_dni(db=session, dni=data.dni)
-    logger.error(user)
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
-    #TODO: Borrar primer condicion despues del OR una vez que hayan implementado el hasheo de la contrasena correctamente
-    if not user or not verify_password(plain_password=data.password, hashed_password=user.contrasena):
+    logger.info(f"Intento login: {user.dni} - Pass DB: {user.contrasena}")
+
+    # === CORRECCIÓN DE CONTRASEÑA (Texto Plano vs Hash) ===
+    password_valida = False
+
+    # Opción A: Chequeo directo (Texto plano) -> Para tus datos actuales ("direc123")
+    if user.contrasena == data.password:
+        password_valida = True
+    else:
+        # Opción B: Chequeo de Hash (Para el futuro/producción)
+        try:
+            if verify_password(plain_password=data.password, hashed_password=user.contrasena):
+                password_valida = True
+        except Exception as e:
+            # Si falla pwdlib (porque 'direc123' no es un hash válido), ignoramos el error
+            logger.warning(f"La contraseña en DB no es un hash válido: {e}")
+            pass
+
+    if not password_valida:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    
+    try:
+        statement = (
+            select(Rol, Escuela)
+            .join(Escuela, Rol.CUE == Escuela.CUE) 
+            .where(Rol.idUsuario == user.idUsuario)
+            .where(
+                or_(
+                    Rol.estado == "Activo",   
+                )
+            )
+        )
+        resultados = session.exec(statement).all()
+        
+    except Exception as e:
+        logger.error(f"Error buscando roles: {e}")
+        raise HTTPException(status_code=500, detail=f"Error interno al buscar roles: {str(e)}")
 
-    # 2) Traer roles + escuela
-    statement = select(Rol, Escuela).join(Escuela).where(Rol.idUsuario == user.idUsuario).where(or_(Rol.estado == RolEstado.Activo, Rol.descripcion == RolDescripcion.Administrador))
-    resultados = session.exec(statement)
     opciones_validas: list[OpcionRol] = []
+    
     for rol, escuela in resultados:
         opciones_validas.append(
             OpcionRol(
                 idUsuario=rol.idUsuario,  
-                descripcion=rol.descripcion.value,
-                CUE=escuela.CUE,
+                descripcion=rol.descripcion, 
+                CUE=escuela.CUE,             
                 nombre_escuela=escuela.nombre,
             )
         )
+
     if not opciones_validas:
-        raise HTTPException(status_code=403, detail="Usuario pendiente de aprobación o sin roles.")
+        # Si no encontró roles, quizás es porque no tiene escuela asignada o el estado no es Activo
+        logger.warning(f"Usuario {user.idUsuario} sin roles activos válidos.")
+        raise HTTPException(status_code=403, detail="Usuario pendiente de aprobación o sin roles asignados.")
 
     return LoginResponse(
         mensaje="Login exitoso",
