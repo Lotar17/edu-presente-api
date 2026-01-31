@@ -1,5 +1,6 @@
+from typing import List
 from sqlmodel import SQLModel, Field
-from app.schemas.rol import RolDescripcion
+from app.schemas.rol import RolDescripcion, RolPublic
 
 class UsuarioBase(SQLModel):
     dni: str = Field(index=True, max_length=8)
@@ -24,3 +25,5 @@ class UsuarioUpdate(SQLModel):
     mailABC: str | None = None
     contrasena: str|None = None
 
+class Usuario_Roles(UsuarioPublic):
+    rol: RolPublic

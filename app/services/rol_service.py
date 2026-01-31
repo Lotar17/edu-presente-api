@@ -1,5 +1,7 @@
+from sqlmodel import and_, select
 from app.models.rol import Rol
-from app.schemas.rol import RolEstado, RolUpdate
+from app.models.usuario import Usuario
+from app.schemas.rol import RolDescripcion, RolEstado, RolUpdate
 from app.dependencies import SessionDep
 
 def get_one_rol(idUsuario: int, CUE: str, db: SessionDep):
@@ -19,3 +21,7 @@ def change_rol_status(rol: RolUpdate, db:SessionDep):
     db.refresh(db_rol)
     return None
 
+def get_docentes_pendientes(db: SessionDep):
+    statement = select(Rol, Usuario).select_from(Rol).join(Usuario, (Rol.idUsuario == Usuario.idUsuario)).where(and_(Rol.estado == RolEstado.Pendiente, Rol.descripcion == RolDescripcion.Docente))
+    resultados = db.exec(statement).all()
+    return resultados
