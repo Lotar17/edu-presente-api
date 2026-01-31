@@ -17,7 +17,7 @@ class EscuelaBase(SQLModel):
     correo_electronico: str = Field(index=True,max_length=255)
 
 class EscuelaPublic(EscuelaBase):
-    pass
+    CUE: str
 
 class EscuelaConCursos(EscuelaBase):
     cursos: List[CursoPublic]
