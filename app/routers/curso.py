@@ -1,9 +1,10 @@
-from typing import Annotated, Sequence
+from typing import Annotated, Sequence, List
 from fastapi import APIRouter, HTTPException, Query
 from app.dependencies import SessionDep
 from app.models.curso import Curso
 from app.schemas.curso import CursoCreate, CursoPublic, CursoUpdate
-from app.services.curso_service import change_curso, delete_one_curso, get_all_cursos, get_one_curso, add_curso
+from app.schemas.escuela import EscuelaConCursos
+from app.services.curso_service import change_curso, delete_one_curso, get_all_cursos, get_cursos_by_usuario, get_one_curso, add_curso
 from app.services.rol_service import get_one_rol
 from app.services.usuario_service import change_usuario
 
@@ -51,3 +52,18 @@ def delete_curso(idCurso: int, session: SessionDep):
     except Exception:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     return {"ok": True, "message": f"Curso {idCurso} eliminado correctamente"}
+
+@router.get("/escuelas/{idUsuario}", response_model=List[EscuelaConCursos])
+def get_cursos_and_escuelas_by_usuario(idUsuario: int, session: SessionDep):
+    """Devuelve la lista de escuelas asociada a ese usuario y cada escuela cuenta con una lista de cursos en los que el usuario tiene participación"""
+    resultados = get_cursos_by_usuario(db=session, idUsuario=idUsuario)
+    agrupados: dict[str, EscuelaConCursos] = {}
+    for curso, escuela in resultados:
+        if escuela.CUE not in agrupados:
+            datos_escuela = escuela.model_dump()
+            agrupados[escuela.CUE] = EscuelaConCursos(**datos_escuela, cursos=[])
+        curso_validado = CursoPublic.model_validate(curso)
+        agrupados[escuela.CUE].cursos.append(curso_validado)
+    return list(agrupados.values())
+
+

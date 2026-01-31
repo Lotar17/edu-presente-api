@@ -1,12 +1,15 @@
 from typing import Annotated
-from sqlmodel import Session, select
+from sqlmodel import Session, and_, select
 import logging
 from fastapi import Query
 from app.core.security import get_password_hash
 from app.models.curso import Curso
 from app.dependencies import SessionDep
+from app.models.rol import Rol
 
+from app.models.escuela import Escuela
 from app.schemas.curso import CursoCreate, CursoUpdate
+from app.schemas.rol import RolEstado
 from app.services.rol_service import get_one_rol
 
 logger = logging.getLogger()
@@ -52,5 +55,8 @@ def change_curso(curso_nuevo: CursoUpdate, curso_existente: Curso, db: SessionDe
     db.refresh(curso_existente)
     return curso_existente
 
-
+def get_cursos_by_usuario(db: SessionDep, idUsuario: int):
+    statement = select(Curso, Escuela).select_from(Curso).join(Rol, (Curso.idUsuario == Rol.idUsuario) & (Curso.CUE == Rol.CUE)).join(Escuela).where(and_(Curso.idUsuario == idUsuario, Rol.estado == RolEstado.Activo))
+    resultados = db.exec(statement).all()
+    return resultados
 

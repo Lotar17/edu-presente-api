@@ -1,4 +1,7 @@
+from typing import List
 from sqlmodel import SQLModel, Field
+
+from app.schemas.curso import CursoPublic
 
 
 
@@ -15,6 +18,9 @@ class EscuelaBase(SQLModel):
 
 class EscuelaPublic(EscuelaBase):
     pass
+
+class EscuelaConCursos(EscuelaBase):
+    cursos: List[CursoPublic]
 
 class EscuelaCreate(EscuelaBase):
     CUE: str = Field(min_length=9, max_length=9)
