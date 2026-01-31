@@ -18,7 +18,7 @@ class RolBase(SQLModel):
     estado: RolEstado = Field(default=RolEstado.Pendiente)
 
 class RolPublic(RolBase):
-    pass
+    CUE: str
 
 class RolCreate(RolBase):
     pass
