@@ -6,7 +6,6 @@ class EscuelaBase(SQLModel):
     nombre: str = Field(max_length=255)
     numero: int = Field()
     nivel_educativo: str = Field(max_length=255)
-    turno: str = Field(max_length=255)
     matricula: str = Field(max_length=255)
     direccion: str = Field(max_length=255)
     codigo_postal: str = Field(max_length=255)
@@ -25,7 +24,6 @@ class EscuelaUpdate(SQLModel):
     nombre: str | None = None
     numero: int | None = None
     nivel_educativo: str | None= None
-    turno: str| None = None
     matricula: str | None= None
     direccion: str|None = None
     codigo_postal: str | None= None
