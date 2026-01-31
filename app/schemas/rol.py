@@ -23,5 +23,8 @@ class RolPublic(RolBase):
 class RolCreate(RolBase):
     pass
 
+
 class RolUpdate(SQLModel):
-    descripcion: str | None = None
+    idUsuario: int
+    CUE: str
+    estado: bool
