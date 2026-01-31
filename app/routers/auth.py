@@ -16,27 +16,21 @@ logger = logging.getLogger()
 
 @router.post("/", response_model=LoginResponse)
 def login(data: LoginRequest, session: SessionDep):
-    # 1) Buscar usuario
     user = get_usuario_by_dni(db=session, dni=data.dni)
     
     if not user:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
     logger.info(f"Intento login: {user.dni} - Pass DB: {user.contrasena}")
-
-    # === CORRECCIÓN DE CONTRASEÑA (Texto Plano vs Hash) ===
     password_valida = False
 
-    # Opción A: Chequeo directo (Texto plano) -> Para tus datos actuales ("direc123")
     if user.contrasena == data.password:
         password_valida = True
     else:
-        # Opción B: Chequeo de Hash (Para el futuro/producción)
         try:
             if verify_password(plain_password=data.password, hashed_password=user.contrasena):
                 password_valida = True
         except Exception as e:
-            # Si falla pwdlib (porque 'direc123' no es un hash válido), ignoramos el error
             logger.warning(f"La contraseña en DB no es un hash válido: {e}")
             pass
 
@@ -73,7 +67,6 @@ def login(data: LoginRequest, session: SessionDep):
         )
 
     if not opciones_validas:
-        # Si no encontró roles, quizás es porque no tiene escuela asignada o el estado no es Activo
         logger.warning(f"Usuario {user.idUsuario} sin roles activos válidos.")
         raise HTTPException(status_code=403, detail="Usuario pendiente de aprobación o sin roles asignados.")
 
