@@ -21,7 +21,7 @@ def change_rol_status(rol: RolUpdate, db:SessionDep):
     db.refresh(db_rol)
     return None
 
-def get_docentes_pendientes(db: SessionDep):
-    statement = select(Rol, Usuario).select_from(Rol).join(Usuario, (Rol.idUsuario == Usuario.idUsuario)).where(and_(Rol.estado == RolEstado.Pendiente, Rol.descripcion == RolDescripcion.Docente))
+def get_roles_pendientes(db: SessionDep, rol: RolDescripcion):
+    statement = select(Rol, Usuario).select_from(Rol).join(Usuario, (Rol.idUsuario == Usuario.idUsuario)).where(and_(Rol.estado == RolEstado.Pendiente, Rol.descripcion == rol.value))
     resultados = db.exec(statement).all()
     return resultados
