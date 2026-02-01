@@ -4,7 +4,7 @@ from sqlmodel import SQLModel, Field
 class CursoBase(SQLModel):
     nombre: str = Field(max_length=255)
     cicloLectivo: str = Field(max_length=50)
-    divison: str = Field(max_length=50)
+    division: str = Field(max_length=50)
 
 
 class CursoPublic(CursoBase):
