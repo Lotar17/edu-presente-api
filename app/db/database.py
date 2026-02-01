@@ -11,4 +11,6 @@ def create_db_and_tables():
         import app.models.curso
         import app.models.alumno
         import app.models.asistencia
+        import app.models.responsable
+        import app.models.parentesco
         SQLModel.metadata.create_all(engine)
