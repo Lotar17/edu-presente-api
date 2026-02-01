@@ -17,7 +17,6 @@ def getAllAlumnos(session: SessionDep, offset: int = 0, limit: Annotated[int, Qu
 def getAlumnosByCurso(idCurso: int, session: SessionDep, offset: int = 0, limit: Annotated[int, Query(le=100)]=100):
     try:
         alumnos = get_alumnos_by_curso(idCurso=idCurso, db=session)
-        alumnos_validado = AlumnoPublic.model_validate(alumnos)
-        return alumnos_validado
+        return alumnos
     except Exception as e:
-        raise HTTPException(status_code=404, detail=e)
+        raise HTTPException(status_code=404, detail=str(e))
