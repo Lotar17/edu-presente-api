@@ -2,20 +2,23 @@ from datetime import date
 from enum import Enum
 from sqlmodel import SQLModel, Field
 
-class AsistenciaEstado(Enum):
+
+class AsistenciaEstado(str, Enum):
     Presente = "Presente"
     Ausente = "Ausente"
     Tarde = "Tarde"
 
+
 class AsistenciaBase(SQLModel):
-    estado: AsistenciaEstado = Field()
-    lluvia: bool = Field()
+    estado: AsistenciaEstado = Field(...)
+    lluvia: bool = Field(default=False)
+
 
 class AsistenciaPublic(AsistenciaBase):
     idAlumno: int
 
 
 class AsistenciaCreate(AsistenciaBase):
-    fecha: date 
+    fecha: date
     idAlumno: int
     idCurso: int

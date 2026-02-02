@@ -7,6 +7,8 @@ from app.routers import curso
 from app.routers import auth
 from app.routers import rol
 from app.routers import alumno
+from app.routers import asistencia
+from app.routers import inscriptos
 
 app = FastAPI()
 
@@ -27,5 +29,7 @@ app.include_router(curso.router)
 app.include_router(auth.router)
 app.include_router(rol.router)
 app.include_router(alumno.router)
+app.include_router(asistencia.router)
+app.include_router(inscriptos.router)
 
 
