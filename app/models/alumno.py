@@ -1,37 +1,28 @@
-from typing import Optional, TYPE_CHECKING
-from datetime import date
+from typing import TYPE_CHECKING
 
-from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, Date
+from sqlmodel import Field, Relationship
 
-from app.models.alumno_responsable import AlumnoResponsable
+from app.schemas.alumno import AlumnoBase
+from app.models.parentesco import Parentesco
+from app.models.inscriptos import Inscriptos
 
 if TYPE_CHECKING:
-    from app.models.responsable import Responsable
+    from .curso import Curso
+    from .responsable import Responsable
 
 
-class Alumno(SQLModel, table=True):
-    __tablename__ = "alumno"
+class Alumno(AlumnoBase, table=True):
+    idAlumno: int | None = Field(default=None, primary_key=True)
 
-    idAlumno: Optional[int] = Field(default=None, primary_key=True)
-
-    idCurso: int = Field(index=True, foreign_key="curso.idCurso")
-
-    nombre: str
-    apellido: str
-    dni: str
-
-    # ✅ Mapeo a columnas existentes en DB
-    fechaNac: date = Field(sa_column=Column("fecha_nacimiento", Date, nullable=False))
-    fechaIngreso: date = Field(sa_column=Column("fecha_ingreso", Date, nullable=False))
-
-    direccion: Optional[str] = None
-
-    # ✅ Relación many-to-many con Responsable, guardando parentesco en la tabla puente
-    responsables: list["Responsable"] = Relationship(
+    # ✅ MATRÍCULA REAL
+    # Cursos a los que el alumno está inscripto, independientemente de la asistencia
+    cursos: list["Curso"] = Relationship(
         back_populates="alumnos",
-        link_model=AlumnoResponsable
+        link_model=Inscriptos
     )
 
-    # (opcional) si querés estado, hay que crear columna en DB
-    # estado: str = "Activo"
+    # ✅ Responsables por parentesco
+    responsables: list["Responsable"] = Relationship(
+        back_populates="alumnos",
+        link_model=Parentesco
+    )

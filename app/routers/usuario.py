@@ -1,112 +1,52 @@
-from typing import Annotated
-
-from fastapi import APIRouter, HTTPException, Query
-from sqlmodel import select
+from typing import Annotated, Sequence
 
 from app.dependencies import SessionDep
-from app.models.usuario import Usuario
-from app.schemas.usuario import (
-    UsuarioCreate,
-    UsuarioPublic,
-    UsuarioUpdate
-)
+from app.models.escuela import Escuela
+from app.models.rol import Rol
+from app.models.usuario import Usuario 
+from fastapi import APIRouter, HTTPException, Query
 
-router = APIRouter(
-    prefix="/usuarios",
-    tags=["Usuarios"]
-)
+from app.schemas.usuario import UsuarioCreate, UsuarioPublic, UsuarioUpdate
+from app.services.usuario_service import add_usuario, change_usuario, delete_one_usuario, get_all_usuarios, get_one_usuario, get_usuario_by_dni
 
-# =====================================================
-# GET /usuarios → Listar usuarios (para Admin)
-# =====================================================
-@router.get("/", response_model=list[UsuarioPublic])
-def get_all_usuarios(
-    session: SessionDep,
-    offset: int = 0,
-    limit: Annotated[int, Query(le=100)] = 100
-):
-    usuarios = session.exec(
-        select(Usuario).offset(offset).limit(limit)
-    ).all()
+router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
+
+
+@router.get("/usuarios/", response_model=list[UsuarioPublic])
+def getAllUsuarios(session: SessionDep, offset: int =0, limit: Annotated[int, Query(le=100)]=100) :
+    usuarios = get_all_usuarios(session, offset, limit)
     return usuarios
 
 
-# =====================================================
-# POST /usuarios → Crear usuario (registro / admin)
-# =====================================================
-@router.post("/", response_model=UsuarioPublic, status_code=201)
-def create_usuario(
-    usuario: UsuarioCreate,
-    session: SessionDep
-):
-    # Crear instancia del modelo
-    db_usuario = Usuario.model_validate(usuario)
-
-    session.add(db_usuario)
-    session.commit()
-    session.refresh(db_usuario)
-
+@router.post("/usuarios/", response_model=UsuarioPublic)
+def create_usuario(usuario: UsuarioCreate, session: SessionDep) :
+    usuario_existente = get_usuario_by_dni(session, usuario.dni)
+    if usuario_existente:
+        raise HTTPException(status_code=400, detail="Ya existe un usuario con este DNI")
+    db_usuario = add_usuario(usuario, session)
     return db_usuario
 
-
-# =====================================================
-# GET /usuarios/{id} → Obtener usuario por ID
-# =====================================================
-@router.get("/{usuario_id}", response_model=UsuarioPublic)
-def read_usuario(
-    usuario_id: int,
-    session: SessionDep
-):
-    usuario = session.get(Usuario, usuario_id)
+@router.get("/usuarios/{usuario_id}", response_model=UsuarioPublic)
+def read_usuario(usuario_id:int, session: SessionDep):
+    usuario = get_one_usuario(usuario_id, session)
     if not usuario:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return usuario
 
-
-# =====================================================
-# PATCH /usuarios/{id} → Actualizar usuario
-# =====================================================
-@router.patch("/{usuario_id}", response_model=UsuarioPublic)
-def update_usuario(
-    usuario_id: int,
-    usuario: UsuarioUpdate,
-    session: SessionDep
-):
-    usuario_db = session.get(Usuario, usuario_id)
+@router.patch("/usuarios/{usuario_id}", response_model=UsuarioPublic)
+def update_usuario(usuario_id: int, usuario: UsuarioUpdate, session: SessionDep):
+    usuario_db = get_one_usuario(usuario_id, session)
     if not usuario_db:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
-
-    usuario_data = usuario.model_dump(exclude_unset=True)
-    usuario_db.sqlmodel_update(usuario_data)
-
-    session.add(usuario_db)
-    session.commit()
-    session.refresh(usuario_db)
-
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    usuario_db = change_usuario(usuario, usuario_db, session)
     return usuario_db
 
-
-# =====================================================
-# DELETE /usuarios/{id} → Eliminar usuario
-# =====================================================
-@router.delete("/{usuario_id}", status_code=204)
-def delete_usuario(
-    usuario_id: int,
-    session: SessionDep
-):
-    usuario = session.get(Usuario, usuario_id)
+@router.delete("/usuarios/{usuario_id}")
+def delete_usuario(usuario_id:int, session: SessionDep):
+    usuario = get_one_usuario(usuario_id, session)
     if not usuario:
-        raise HTTPException(
-            status_code=404,
-            detail="Usuario no encontrado"
-        )
+        raise HTTPException(status_code=404, detail="Usuario not found")
+    delete_one_usuario(usuario, session)
+    return {"ok": True}
 
-    session.delete(usuario)
-    session.commit()
-    return None
+

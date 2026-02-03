@@ -1,14 +1,16 @@
-# app/models/curso.py
-from typing import Optional
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, Relationship
+from typing import TYPE_CHECKING
 
-class Curso(SQLModel, table=True):
-    idCurso: Optional[int] = Field(default=None, primary_key=True)
-    idEscuela: int = Field(index=True, foreign_key="escuela.idEscuela")
+from app.schemas.curso import CursoBase
+from app.models.inscriptos import Inscriptos
 
-    nombre: str
-    grado: Optional[str] = None
-    division: Optional[str] = None
-    turno: Optional[str] = None
+if TYPE_CHECKING:
+    from .alumno import Alumno
 
-    cicloLectivo: int  # ✅ tu front lo exige
+
+class Curso(CursoBase, table=True):
+    idCurso: int | None = Field(default=None, primary_key=True)
+    password: str
+    idUsuario: int | None = Field(default=None, nullable=False, foreign_key="rol.idUsuario")
+    CUE: str | None = Field(default=None, nullable=False, foreign_key="rol.CUE")
+    alumnos: list["Alumno"] = Relationship(back_populates="cursos", link_model=Inscriptos)
