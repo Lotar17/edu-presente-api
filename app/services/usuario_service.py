@@ -1,15 +1,12 @@
-from operator import and_
 from app.core.security import get_password_hash
 from app.models.usuario import Usuario
 from app.models.rol import Rol
 from enum import Enum
 from typing import Annotated
-from sqlmodel import Session, select
+from sqlmodel import select
 from fastapi import Query
 from app.dependencies import SessionDep
-from app.schemas.rol import RolDescripcion, RolEstado
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
-from app.services.escuela_service import get_one_escuela
 
 
 
@@ -54,11 +51,6 @@ def change_usuario(usuario_nuevo: UsuarioUpdate, usuario_existente: Usuario, db:
 def delete_one_usuario(usuario: Usuario, db: SessionDep):
     db.delete(usuario)
     db.commit()
-
-def get_usuarios_by_escuela(tipo: RolDescripcion, CUE: str, db: SessionDep):
-    statement = select(Usuario).select_from(Usuario).join(Rol, (Rol.idUsuario == Usuario.idUsuario)).where(Rol.estado == RolEstado.Activo, Rol.descripcion == tipo, Rol.CUE == CUE)
-    resultados = db.exec(statement).all()
-    return resultados
 
 
 
