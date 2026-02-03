@@ -1,24 +1,32 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from enum import Enum
+from sqlmodel import SQLModel, Field
 from datetime import date
 
-class AlumnoCreate(BaseModel):
-    cursoId: int
-    nombre: str
-    apellido: str
-    dni: str
-    fechaNac: date
-    fechaIngreso: date
-    direccion: Optional[str] = None
+class AlumnoEstado(Enum):
+    Activo = "Activo"
+    Inactivo = "Inactivo"
 
-class AlumnoPublic(BaseModel):
-    id: int = Field(alias="idAlumno")
-    cursoId: int = Field(alias="idCurso")
-    nombre: str
-    apellido: str
-    dni: str
-    fechaNac: date
-    fechaIngreso: date
-    direccion: Optional[str] = None
+class AlumnoBase(SQLModel):
+    nombre: str = Field(max_length=100)
+    apellido: str = Field(max_length=100)
+    dni: str = Field(index=True, max_length=8)
+    fecha_nacimiento: date = Field(nullable=False)
+    fecha_ingreso: date = Field()
+    direccion: str = Field(max_length=100)
+    estado: AlumnoEstado = Field(default=AlumnoEstado.Inactivo)
 
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+class AlumnoPublic(AlumnoBase):
+    idAlumno: int
+
+class AlumnoCreate(AlumnoBase):
+    idCurso: int
+
+class AlumnoUpdate(SQLModel):
+    nombre: str | None = None
+    apellido: str | None = None
+    dni: str | None = None
+    fecha_nacimiento: date | None = None
+    fecha_ingreso: date | None = None
+    direccion: str | None = None
+    estado: AlumnoEstado | None = None
+

@@ -1,28 +1,30 @@
 from enum import Enum
 from sqlmodel import SQLModel, Field
 
-
-class RolEstado(str, Enum):
+class RolEstado(Enum):
     Activo = "Activo"
     Pendiente = "Pendiente"
     Rechazado = "Rechazado"
 
+class RolDescripcion(Enum):
+    Director = "Director"
+    Docente = "Docente"
+    Administrador = "Administrador"
+    Asistente = "Asistente"
+
 
 class RolBase(SQLModel):
-    descripcion: str = Field(max_length=255)
-    estado: str = Field(default="Pendiente", max_length=20)
-
+    descripcion: RolDescripcion = Field()
+    estado: RolEstado = Field(default=RolEstado.Pendiente)
 
 class RolPublic(RolBase):
-    idUsuario: int
-    idEscuela: int
-
+    CUE: str
 
 class RolCreate(RolBase):
-    idUsuario: int
-    idEscuela: int
+    pass
 
 
 class RolUpdate(SQLModel):
-    descripcion: str | None = None
-    estado: str | None = None
+    idUsuario: int
+    CUE: str
+    estado: bool

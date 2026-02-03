@@ -1,181 +1,69 @@
-# app/routers/curso.py
-from typing import Annotated
+from typing import Annotated, Sequence, List
 from fastapi import APIRouter, HTTPException, Query
-from sqlmodel import select
-from sqlalchemy import func
-
 from app.dependencies import SessionDep
 from app.models.curso import Curso
-from app.models.escuela import Escuela
-from app.models.usuario import Usuario
-from app.models.alumno import Alumno
-
 from app.schemas.curso import CursoCreate, CursoPublic, CursoUpdate
-from app.schemas.docente import CursoAsignadoPublic, EscuelaCursosPublic, CursoOption
+from app.schemas.escuela import EscuelaConCursos
+from app.services.curso_service import change_curso, delete_one_curso, get_all_cursos, get_cursos_by_usuario, get_one_curso, add_curso
+from app.services.rol_service import get_one_rol
+from app.services.usuario_service import change_usuario
 
 router = APIRouter(prefix="/cursos", tags=["Cursos"])
 
-
 @router.get("/", response_model=list[CursoPublic])
-def list_cursos(
-    session: SessionDep,
-    offset: int = 0,
-    limit: Annotated[int, Query(le=200)] = 100,
-    escuelaId: int | None = None,
+def getAllCursos(
+    session: SessionDep, 
+    offset: int = 0, 
+    limit: Annotated[int, Query(le=100)] = 100
 ):
-    q = select(Curso)
-    if escuelaId:
-        q = q.where(Curso.idEscuela == escuelaId)
-    return session.exec(q.offset(offset).limit(limit)).all()
+    """Obtiene la lista de todos los cursos con paginación."""
+    return get_all_cursos(session, offset, limit)
 
+@router.post("/", response_model=CursoPublic)
+def create_curso(curso: CursoCreate, session: SessionDep):
+    """Crea un nuevo curso."""
+    curso_creado = add_curso(session, curso)
+    if not curso_creado:
+        raise HTTPException(status_code=404, detail="El rol ingresado no se encuentra habilitado")
+    return curso_creado
 
-@router.get("/mis", response_model=list[CursoAsignadoPublic])
-def mis_cursos_docente(session: SessionDep, docenteId: int):
-    q = (
-        select(
-            Curso.idCurso.label("cursoId"),
-            Curso.nombre.label("cursoNombre"),
-            Curso.idEscuela.label("escuelaId"),
-            Escuela.nombre.label("escuelaNombre"),
-            func.count(Alumno.idAlumno).label("alumnosCount"),
-        )
-        .join(Escuela, Escuela.idEscuela == Curso.idEscuela)
-        .outerjoin(Alumno, Alumno.idCurso == Curso.idCurso)
-        .where(Curso.idDocente == docenteId)
-        .group_by(Curso.idCurso, Curso.nombre, Curso.idEscuela, Escuela.nombre)
-        .order_by(Escuela.nombre.asc(), Curso.nombre.asc())
-    )
-
-    rows = session.exec(q).all()
-
-    return [
-        CursoAsignadoPublic(
-            escuelaId=r.escuelaId,
-            escuelaNombre=r.escuelaNombre,
-            cursoId=r.cursoId,
-            cursoNombre=r.cursoNombre,
-            alumnosCount=int(r.alumnosCount or 0),
-            turno=None,
-            estado="Activo",
-            icon="groups",
-        )
-        for r in rows
-    ]
-
-
-# ✅ IMPORTANTE: ESTE VA ANTES DE /{curso_id}
-@router.get("/filtros", response_model=list[EscuelaCursosPublic])
-def filtros_docente(session: SessionDep, docenteId: int):
-    q = (
-        select(
-            Escuela.idEscuela,
-            Escuela.nombre,
-            Curso.idCurso,
-            Curso.nombre,
-            Curso.division,
-            Curso.cicloLectivo,
-        )
-        .join(Curso, Curso.idEscuela == Escuela.idEscuela)
-        .where(Curso.idDocente == docenteId)
-        .order_by(Escuela.nombre.asc(), Curso.nombre.asc())
-    )
-
-    rows = session.exec(q).all()
-
-    map_esc: dict[int, EscuelaCursosPublic] = {}
-
-    for r in rows:
-        esc_id = r[0]
-        esc_nom = r[1]
-
-        if esc_id not in map_esc:
-            map_esc[esc_id] = EscuelaCursosPublic(
-                escuelaId=esc_id,
-                escuelaNombre=esc_nom,
-                cursos=[]
-            )
-
-        map_esc[esc_id].cursos.append(
-            CursoOption(
-                cursoId=r[2],
-                cursoNombre=r[3],
-                division=r[4],
-                cicloLectivo=r[5],
-            )
-        )
-
-    return list(map_esc.values())
-
-
-@router.get("/{curso_id}", response_model=CursoPublic)
-def get_curso(curso_id: int, session: SessionDep):
-    curso = session.get(Curso, curso_id)
-    if not curso:
+@router.get("/{idCurso}", response_model=CursoPublic)
+def read_curso(idCurso: int, session: SessionDep):
+    """Obtiene un curso específico por su ID."""
+    db_curso = get_one_curso(idCurso, session)
+    if not db_curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
-    return curso
+    return db_curso
 
-
-@router.post("/", response_model=CursoPublic, status_code=201)
-def create_curso(payload: CursoCreate, session: SessionDep):
-    escuela = session.get(Escuela, payload.escuelaId)
-    if not escuela:
-        raise HTTPException(status_code=404, detail="Escuela no encontrada")
-
-    if payload.docenteId is not None:
-        docente = session.get(Usuario, payload.docenteId)
-        if not docente:
-            raise HTTPException(status_code=404, detail="Docente no encontrado")
-
-    curso = Curso(
-        idEscuela=payload.escuelaId,
-        idDocente=payload.docenteId,
-        nombre=payload.nombre,
-        division=payload.division,
-        cicloLectivo=payload.cicloLectivo
-    )
-    session.add(curso)
-    session.commit()
-    session.refresh(curso)
-    return curso
-
-
-@router.patch("/{curso_id}", response_model=CursoPublic)
-def update_curso(curso_id: int, payload: CursoUpdate, session: SessionDep):
-    curso = session.get(Curso, curso_id)
-    if not curso:
+@router.patch("/{idCurso}", response_model=CursoPublic)
+def update_curso(idCurso: int, curso: CursoUpdate, session: SessionDep):
+    """Actualiza los datos de un curso de forma parcial (PATCH)."""
+    db_curso = get_one_curso(idCurso, session)
+    if not db_curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
+    db_curso = change_curso(curso_nuevo=curso, curso_existente=db_curso, db=session)
+    return db_curso
 
-    data = payload.model_dump(exclude_unset=True)
-
-    data.pop("grado", None)
-    data.pop("turno", None)
-
-    if "escuelaId" in data:
-        escuela = session.get(Escuela, data["escuelaId"])
-        if not escuela:
-            raise HTTPException(status_code=404, detail="Escuela no encontrada")
-        data["idEscuela"] = data.pop("escuelaId")
-
-    if "docenteId" in data:
-        docente_id = data.pop("docenteId")
-        if docente_id is not None:
-            docente = session.get(Usuario, docente_id)
-            if not docente:
-                raise HTTPException(status_code=404, detail="Docente no encontrado")
-        data["idDocente"] = docente_id
-
-    curso.sqlmodel_update(data)
-    session.add(curso)
-    session.commit()
-    session.refresh(curso)
-    return curso
-
-
-@router.delete("/{curso_id}", status_code=204)
-def delete_curso(curso_id: int, session: SessionDep):
-    curso = session.get(Curso, curso_id)
-    if not curso:
+@router.delete("/{idCurso}")
+def delete_curso(idCurso: int, session: SessionDep):
+    """Elimina un curso por su ID."""
+    try:
+        delete_one_curso(idCurso, session)
+    except Exception:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
-    session.delete(curso)
-    session.commit()
-    return None
+    return {"ok": True, "message": f"Curso {idCurso} eliminado correctamente"}
+
+@router.get("/escuelas/{idUsuario}", response_model=List[EscuelaConCursos])
+def get_cursos_and_escuelas_by_usuario(idUsuario: int, session: SessionDep):
+    """Devuelve la lista de escuelas asociada a ese usuario y cada escuela cuenta con una lista de cursos en los que el usuario tiene participación"""
+    resultados = get_cursos_by_usuario(db=session, idUsuario=idUsuario)
+    agrupados: dict[str, EscuelaConCursos] = {}
+    for curso, escuela in resultados:
+        if escuela.CUE not in agrupados:
+            datos_escuela = escuela.model_dump()
+            agrupados[escuela.CUE] = EscuelaConCursos(**datos_escuela, cursos=[])
+        curso_validado = CursoPublic.model_validate(curso)
+        agrupados[escuela.CUE].cursos.append(curso_validado)
+    return list(agrupados.values())
+
+

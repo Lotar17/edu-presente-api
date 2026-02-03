@@ -1,35 +1,28 @@
-from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from sqlmodel import SQLModel, Field
+from datetime import date
 
 
-class ResponsableCreate(BaseModel):
-    nombre: str
-    apellido: str
-    dni: str
-    telefono: Optional[str] = None
-    correo_electronico: Optional[str] = None
+class ResponsableBase(SQLModel):
+    nombre: str = Field(max_length=100)
+    apellido: str = Field(max_length=100)
+    dni: str = Field(index=True, max_length=8)
+    fecha_nac: date = Field(nullable=False)
+    email: str = Field(index=True, max_length=255)
+    nro_celular: str = Field(max_length=15)
+    direccion: str = Field(max_length=100)
 
-
-class ResponsableUpdate(BaseModel):
-    nombre: Optional[str] = None
-    apellido: Optional[str] = None
-    dni: Optional[str] = None
-    telefono: Optional[str] = None
-    correo_electronico: Optional[str] = None
-
-
-class ResponsablePublic(BaseModel):
+class ResonsablePublic(ResponsableBase):
     idResponsable: int
-    nombre: str
-    apellido: str
-    dni: str
-    telefono: Optional[str] = None
-    correo_electronico: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
-
-
-class VincularResponsableRequest(BaseModel):
+class ResponsableCreate(ResponsableBase):
     idAlumno: int
-    idResponsable: int
-    parentesco: str  # "Madre", "Padre", "Tutor", etc.
+
+class ResponsableUpdate(SQLModel):
+    nombre: str | None = None
+    apellido: str | None = None
+    dni: str | None = None
+    fecha_nac: date | None = None
+    nro_celular: str | None = None
+    direccion: str | None = None
+    email: str | None = None
+

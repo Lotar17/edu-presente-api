@@ -1,71 +1,65 @@
 from fastapi import APIRouter, HTTPException, Depends
-from sqlmodel import Session, select
-from pydantic import BaseModel
-from typing import List
-
-from app.db.database import get_session
+from sqlmodel import Session, select, or_
+from app.core.security import verify_password
+from app.dependencies import SessionDep
 from app.models.usuario import Usuario
 from app.models.rol import Rol
 from app.models.escuela import Escuela
+from app.schemas.rol import RolDescripcion, RolEstado
+from app.services.usuario_service import get_usuario_by_dni
+from app.schemas.login import LoginRequest, OpcionRol, LoginResponse
+import logging
 
-router = APIRouter()
+router = APIRouter(prefix="/login", tags=["Login"])
 
+logger = logging.getLogger()
 
-class LoginRequest(BaseModel):
-    dni: str
-    password: str
-
-
-class OpcionRol(BaseModel):
-    # ⚠️ En el merge, Rol NO tiene idRol. Usamos idEscuela como identificador estable
-    idRol: int
-    descripcion: str
-    idEscuela: int
-    nombre_escuela: str
-
-
-class LoginResponse(BaseModel):
-    mensaje: str
-    usuario_id: int
-    nombre: str
-    apellido: str
-    roles_disponibles: List[OpcionRol]
-
-
-@router.post("/login", response_model=LoginResponse)
-def login(data: LoginRequest, session: Session = Depends(get_session)):
+@router.post("/", response_model=LoginResponse)
+def login(data: LoginRequest, session: SessionDep):
     # 1) Buscar usuario
-    user = session.exec(select(Usuario).where(Usuario.dni == data.dni)).first()
-
-    if not user or user.contrasena != data.password:
+    user = get_usuario_by_dni(db=session, dni=data.dni)
+    
+    # 2) Validación 
+    if not user or not verify_password(plain_password=data.password, hashed_password=user.contrasena):
+        logger.warning(f"Login fallido para DNI: {data.dni}")
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    # 2) Traer roles + escuela
-    resultados = session.exec(
-        select(Rol, Escuela)
-        .join(Escuela, Rol.idEscuela == Escuela.idEscuela)
-        .where(Rol.idUsuario == user.idUsuario)
-    ).all()
-
-    # 3) Filtrar aprobados
-    # Tu sistema usa "Activo/Pendiente/Rechazado".
-    # Acepto "Aprobado" por compatibilidad con datos viejos.
-    estados_ok = {"Activo", "Aprobado"}
-
-    opciones_validas: list[OpcionRol] = []
-    for rol, escuela in resultados:
-        if rol.descripcion == "Admin" or (rol.estado in estados_ok):
-            opciones_validas.append(
-                OpcionRol(
-                    idRol=rol.idEscuela,  # <-- reemplazo del viejo idRol
-                    descripcion=rol.descripcion,
-                    idEscuela=escuela.idEscuela,
-                    nombre_escuela=escuela.nombre,
+    # 3) Traer roles + escuela
+    try:
+        statement = (
+            select(Rol, Escuela)
+            .join(Escuela, Rol.CUE == Escuela.CUE) 
+            .where(Rol.idUsuario == user.idUsuario)
+            .where(
+                or_(
+                    Rol.estado == "Activo",
+                    Rol.descripcion == "Administrador" 
                 )
             )
+        )
+        resultados = session.exec(statement).all()
+        
+    except Exception as e:
+        logger.error(f"Error buscando roles: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al buscar roles.")
+
+    opciones_validas: list[OpcionRol] = []
+    
+    for rol, escuela in resultados:
+        opciones_validas.append(
+            OpcionRol(
+                idUsuario=rol.idUsuario,  
+                descripcion=rol.descripcion, 
+                CUE=escuela.CUE,             
+                nombre_escuela=escuela.nombre,
+            )
+        )
 
     if not opciones_validas:
-        raise HTTPException(status_code=403, detail="Usuario pendiente de aprobación o sin roles.")
+        logger.warning(f"Usuario {user.idUsuario} sin roles activos válidos.")
+        raise HTTPException(status_code=403, detail="Usuario pendiente de aprobación o sin roles asignados.")
+
+    logger.info(f"Login exitoso: {user.dni}")
 
     return LoginResponse(
         mensaje="Login exitoso",

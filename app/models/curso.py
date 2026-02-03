@@ -1,32 +1,16 @@
-# app/models/curso.py
-from typing import Optional, TYPE_CHECKING, List
-from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, Integer
+from sqlmodel import Field, Relationship
+from typing import TYPE_CHECKING
+
+from app.schemas.curso import CursoBase
+from app.models.inscriptos import Inscriptos
 
 if TYPE_CHECKING:
-    from app.models.escuela import Escuela
-    from app.models.alumno import Alumno
-    from app.models.usuario import Usuario
+    from .alumno import Alumno
 
 
-class Curso(SQLModel, table=True):
-    __tablename__ = "curso"
-
-    idCurso: Optional[int] = Field(default=None, primary_key=True)
-    idEscuela: int = Field(index=True, foreign_key="escuela.idEscuela")
-
-    # ✅ NUEVO: docente asignado al curso
-    # (nullable para permitir curso sin docente por ahora)
-    idDocente: Optional[int] = Field(
-        default=None,
-        index=True,
-        foreign_key="usuario.idUsuario"
-    )
-
-    nombre: str = Field(max_length=50)
-    division: str = Field(max_length=50)
-    turno: str = Field(default="Mañana", max_length=20)
-    cicloLectivo: int = Field(sa_column=Column("ciclo_lectivo", Integer, nullable=False))
-    escuela: Optional["Escuela"] = Relationship(back_populates="cursos")
-    alumnos: List["Alumno"] = Relationship(back_populates="curso")
-    docente: Optional["Usuario"] = Relationship(back_populates="cursos")
+class Curso(CursoBase, table=True):
+    idCurso: int | None = Field(default=None, primary_key=True)
+    password: str
+    idUsuario: int | None = Field(default=None, nullable=False, foreign_key="rol.idUsuario")
+    CUE: str | None = Field(default=None, nullable=False, foreign_key="rol.CUE")
+    alumnos: list["Alumno"] = Relationship(back_populates="cursos", link_model=Inscriptos)
