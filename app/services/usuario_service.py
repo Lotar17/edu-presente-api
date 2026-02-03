@@ -9,9 +9,6 @@ from fastapi import Query
 from app.dependencies import SessionDep
 from app.schemas.rol import RolDescripcion, RolEstado
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
-from app.services.escuela_service import get_one_escuela
-
-
 
 def get_all_usuarios(db: SessionDep, offset: int, limit: Annotated[int, Query(le=100)]):
     usuarios = db.exec(select(Usuario).offset(offset).limit(limit)).all()
