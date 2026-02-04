@@ -56,6 +56,11 @@ def get_docentes_por_escuela(CUE: str, session: SessionDep):
     docentes = get_usuarios_by_escuela(tipo=rol, CUE=CUE, db=session)
     return docentes
 
+@router.get("/escuelas/{CUE}/asistentes/", response_model=list[UsuarioPublic])
+def get_asistentes_por_escuela(CUE: str, session: SessionDep):
+    rol = RolDescripcion.Asistente
+    asistentes = get_usuarios_by_escuela(tipo=rol, CUE=CUE, db=session)
+    return asistentes
         
 
 
