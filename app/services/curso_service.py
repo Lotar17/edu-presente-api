@@ -56,7 +56,14 @@ def change_curso(curso_nuevo: CursoUpdate, curso_existente: Curso, db: SessionDe
     return curso_existente
 
 def get_cursos_by_usuario(db: SessionDep, idUsuario: int):
-    statement = select(Curso, Escuela).select_from(Curso).join(Rol, (Curso.idUsuario == Rol.idUsuario) & (Curso.CUE == Rol.CUE)).join(Escuela).where(and_(Curso.idUsuario == idUsuario, Rol.estado == RolEstado.Activo))
+    statement = (
+        select(Curso, Escuela)
+        .select_from(Curso)
+        .join(Rol, (Curso.CUE == Rol.CUE))
+        .join(Escuela, (Escuela.CUE == Curso.CUE))
+        .where(and_(Rol.idUsuario == idUsuario, Rol.estado == RolEstado.Activo))
+    )
     resultados = db.exec(statement).all()
     return resultados
+
 

@@ -19,7 +19,7 @@ class EscuelaBase(SQLModel):
 class EscuelaPublic(EscuelaBase):
     CUE: str
 
-class EscuelaConCursos(EscuelaBase):
+class EscuelaConCursos(EscuelaPublic):
     cursos: List[CursoPublic]
 
 class EscuelaCreate(EscuelaBase):
