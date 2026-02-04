@@ -7,6 +7,7 @@ from app.schemas.escuela import EscuelaConCursos
 from app.services.curso_service import change_curso, delete_one_curso, get_all_cursos, get_cursos_by_usuario, get_one_curso, add_curso
 from app.services.rol_service import get_one_rol
 from app.services.usuario_service import change_usuario
+from app.services.curso_service import get_cursos_by_cue
 
 router = APIRouter(prefix="/cursos", tags=["Cursos"])
 
@@ -44,14 +45,9 @@ def update_curso(idCurso: int, curso: CursoUpdate, session: SessionDep):
     db_curso = change_curso(curso_nuevo=curso, curso_existente=db_curso, db=session)
     return db_curso
 
-@router.delete("/{idCurso}")
-def delete_curso(idCurso: int, session: SessionDep):
-    """Elimina un curso por su ID."""
-    try:
-        delete_one_curso(idCurso, session)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Curso no encontrado")
-    return {"ok": True, "message": f"Curso {idCurso} eliminado correctamente"}
+@router.get("/por-escuela/{cue}", response_model=list[CursoPublic])
+def get_cursos_por_escuela(cue: str, session: SessionDep):
+    return get_cursos_by_cue(session, cue)
 
 @router.get("/escuelas/{idUsuario}", response_model=List[EscuelaConCursos])
 def get_cursos_and_escuelas_by_usuario(idUsuario: int, session: SessionDep):
@@ -65,5 +61,19 @@ def get_cursos_and_escuelas_by_usuario(idUsuario: int, session: SessionDep):
         curso_validado = CursoPublic.model_validate(curso)
         agrupados[escuela.CUE].cursos.append(curso_validado)
     return list(agrupados.values())
+
+@router.delete("/{idCurso}")
+def delete_curso(idCurso: int, session: SessionDep):
+    """Elimina un curso por su ID."""
+    try:
+        delete_one_curso(idCurso, session)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Curso no encontrado")
+    return {"ok": True, "message": f"Curso {idCurso} eliminado correctamente"}
+
+
+
+
+
 
 

@@ -59,11 +59,21 @@ def get_cursos_by_usuario(db: SessionDep, idUsuario: int):
     statement = (
         select(Curso, Escuela)
         .select_from(Curso)
-        .join(Rol, (Curso.CUE == Rol.CUE))
-        .join(Escuela, (Escuela.CUE == Curso.CUE))
-        .where(and_(Rol.idUsuario == idUsuario, Rol.estado == RolEstado.Activo))
+        .join(Rol, and_(Curso.idUsuario == Rol.idUsuario, Curso.CUE == Rol.CUE))  
+        .join(Escuela, Escuela.CUE == Curso.CUE)
+        .where(
+            and_(
+                Rol.idUsuario == idUsuario,           
+                Rol.estado == RolEstado.Activo       
+            )
+        )
     )
-    resultados = db.exec(statement).all()
-    return resultados
+    return db.exec(statement).all()
+
+
+def get_cursos_by_cue(db, cue: str):
+    statement = (select(Curso).where(Curso.CUE == cue))
+    return db.exec(statement).all()
+
 
 
