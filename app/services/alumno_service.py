@@ -54,26 +54,31 @@ def get_one_alumno(idAlumno: int, db: SessionDep):
 # CREATE
 
 def add_alumno(db: SessionDep, alumno_in: AlumnoCreate):
-    
-    existente = get_alumno_by_dni(db, alumno_in.dni)
+    dni = (alumno_in.dni or "").strip()
+
+    if not dni:
+        raise HTTPException(status_code=400, detail="El DNI del alumno es obligatorio")
+
+    existente = get_alumno_by_dni(db, dni)
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe un alumno con ese DNI")
 
-    # Creamos Alumno ignorando idCurso (porque ya no es matrícula)
+    # Creamos Alumno ignorando idCurso (la matrícula va por Inscriptos)
     data = alumno_in.model_dump(exclude={"idCurso"})
+    data["dni"] = dni  # aseguramos el valor limpio
+
     db_alumno = Alumno.model_validate(data)
 
     db.add(db_alumno)
     db.commit()
     db.refresh(db_alumno)
 
-    # Si te mandan idCurso (por swagger/front), lo usamos para inscribir
+    # Inscripción automática si viene idCurso
     if getattr(alumno_in, "idCurso", None) and alumno_in.idCurso > 0:
         curso = get_one_curso(idCurso=alumno_in.idCurso, db=db)
         if curso is None:
             raise HTTPException(status_code=404, detail="El curso ingresado no existe")
 
-        # Evitar duplicado de inscripción
         ya = db.get(Inscriptos, (alumno_in.idCurso, db_alumno.idAlumno))
         if not ya:
             insc = Inscriptos(idCurso=alumno_in.idCurso, idAlumno=db_alumno.idAlumno)
