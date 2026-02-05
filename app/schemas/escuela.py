@@ -11,6 +11,8 @@ class EscuelaBase(SQLModel):
     nivel_educativo: str = Field(max_length=255)
     matricula: str = Field(max_length=255)
     direccion: str = Field(max_length=255)
+    localidad: str | None = None
+    provincia: str | None = None
     codigo_postal: str = Field(max_length=255)
     codigo_provincial: str = Field(max_length=255)
     telefono: str = Field(max_length=15)
@@ -32,6 +34,8 @@ class EscuelaUpdate(SQLModel):
     nivel_educativo: str | None= None
     matricula: str | None= None
     direccion: str|None = None
+    localidad: str | None = None
+    provincia: str | None = None
     codigo_postal: str | None= None
     codigo_provincial: str | None= None
     telefono: str | None= None
