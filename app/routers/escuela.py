@@ -49,10 +49,8 @@ def update_escuela(cue: str, escuela: EscuelaUpdate, session: SessionDep):
     if not db_escuela:
         raise HTTPException(status_code=404, detail="Escuela no encontrada")
     
-    # Extraemos solo los datos enviados en el JSON (ignorando los None no enviados)
     escuela_data = escuela.model_dump(exclude_unset=True)
-    
-    # Actualizamos el modelo de la DB con los nuevos datos
+   
     db_escuela.sqlmodel_update(escuela_data)
     
     session.add(db_escuela)
