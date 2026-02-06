@@ -9,6 +9,23 @@ from app.models.inscriptos import Inscriptos
 from app.schemas.alumno import AlumnoCreate, AlumnoUpdate
 from app.services.curso_service import get_one_curso
 
+# HELPERS
+
+def _clean_str(v: str | None) -> str | None:
+    if v is None:
+        return None
+    return str(v).strip()
+
+def _require_not_empty(value: str | None, field_name: str):
+    """
+    Si el campo viene (no es None), no puede ser vacío.
+    """
+    if value is not None and not str(value).strip():
+        raise HTTPException(status_code=400, detail=f"El campo '{field_name}' no puede estar vacío")
+
+def _exists_otro_alumno_con_dni(db: SessionDep, dni: str, exclude_id: int) -> bool:
+    stmt = select(Alumno).where(Alumno.dni == dni, Alumno.idAlumno != exclude_id)
+    return db.exec(stmt).first() is not None
 
 
 # GET ALL
@@ -18,8 +35,8 @@ def get_all_alumnos(db: SessionDep, offset: int, limit: Annotated[int, Query(le=
     return alumnos
 
 
-
 # GET BY CURSO (INSCRIPTOS)
+
 
 def get_alumnos_by_curso(idCurso: int, db: SessionDep):
     """
@@ -38,23 +55,19 @@ def get_alumnos_by_curso(idCurso: int, db: SessionDep):
     return db.exec(stmt).all()
 
 
-
 # HELPERS
 
 def get_alumno_by_dni(db: SessionDep, dni: str):
     stmt = select(Alumno).where(Alumno.dni == dni)
     return db.exec(stmt).first()
 
-
 def get_one_alumno(idAlumno: int, db: SessionDep):
     return db.get(Alumno, idAlumno)
-
-
 
 # CREATE
 
 def add_alumno(db: SessionDep, alumno_in: AlumnoCreate):
-    dni = (alumno_in.dni or "").strip()
+    dni = _clean_str(alumno_in.dni) or ""
 
     if not dni:
         raise HTTPException(status_code=400, detail="El DNI del alumno es obligatorio")
@@ -65,7 +78,12 @@ def add_alumno(db: SessionDep, alumno_in: AlumnoCreate):
 
     # Creamos Alumno ignorando idCurso (la matrícula va por Inscriptos)
     data = alumno_in.model_dump(exclude={"idCurso"})
-    data["dni"] = dni  # aseguramos el valor limpio
+    data["dni"] = dni  # aseguramos limpio
+
+    # (si querés ser estricto con obligatorios)
+    _require_not_empty(_clean_str(data.get("nombre")), "nombre")
+    _require_not_empty(_clean_str(data.get("apellido")), "apellido")
+    _require_not_empty(_clean_str(data.get("direccion")), "direccion")
 
     db_alumno = Alumno.model_validate(data)
 
@@ -89,18 +107,58 @@ def add_alumno(db: SessionDep, alumno_in: AlumnoCreate):
     return db_alumno
 
 
-
-# UPDATE
+# UPDATE (con validación DNI único)
 
 def update_alumno(alumno_existente: Alumno, alumno_nuevo: AlumnoUpdate, db: SessionDep):
-    alumno_data = alumno_nuevo.model_dump(exclude_unset=True)
-    alumno_existente.sqlmodel_update(alumno_data)
+    data = alumno_nuevo.model_dump(exclude_unset=True)
+
+    # ==========================
+    # VALIDAR DNI DUPLICADO
+    # ==========================
+    if "dni" in data:
+        dni_nuevo = data["dni"].strip()
+        if not dni_nuevo:
+            raise HTTPException(status_code=400, detail="El DNI es obligatorio")
+
+        stmt = select(Alumno).where(
+            Alumno.dni == dni_nuevo,
+            Alumno.idAlumno != alumno_existente.idAlumno
+        )
+        existente = db.exec(stmt).first()
+        if existente:
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe otro alumno con ese DNI"
+            )
+
+        data["dni"] = dni_nuevo
+
+    # ==========================
+    # VALIDAR CAMPOS OBLIGATORIOS
+    # ==========================
+    campos_obligatorios = [
+        "nombre",
+        "apellido",
+        "fecha_nacimiento",
+        "fecha_ingreso",
+        "direccion",
+        "estado",
+    ]
+
+    for campo in campos_obligatorios:
+        if campo in data:
+            valor = data[campo]
+            if valor is None or (isinstance(valor, str) and not valor.strip()):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El campo '{campo}' es obligatorio"
+                )
+
+    alumno_existente.sqlmodel_update(data)
     db.add(alumno_existente)
     db.commit()
     db.refresh(alumno_existente)
     return alumno_existente
-
-
 
 # DELETE
 
