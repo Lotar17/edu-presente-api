@@ -4,6 +4,8 @@ from app.dependencies import SessionDep
 from app.models.curso import Curso
 from app.schemas.curso import CursoCreate, CursoPublic, CursoUpdate
 from app.schemas.escuela import EscuelaConCursos
+from app.schemas.curso_docente import CursoDocenteCreate, CursoDocentePublic
+from app.services.curso_docente_service import asignar_docente_a_curso, listar_docentes_de_curso
 from app.services.curso_service import change_curso, delete_one_curso, get_all_cursos, get_cursos_by_usuario, get_one_curso, add_curso
 from app.services.rol_service import get_one_rol
 from app.services.usuario_service import change_usuario
@@ -20,13 +22,12 @@ def getAllCursos(
     """Obtiene la lista de todos los cursos con paginación."""
     return get_all_cursos(session, offset, limit)
 
-@router.post("/", response_model=CursoPublic)
-def create_curso(curso: CursoCreate, session: SessionDep):
-    """Crea un nuevo curso."""
-    curso_creado = add_curso(session, curso)
-    if not curso_creado:
-        raise HTTPException(status_code=404, detail="El rol ingresado no se encuentra habilitado")
-    return curso_creado
+@router.post("/", status_code=410)
+def create_curso_deprecated():
+    raise HTTPException(
+        status_code=410,
+        detail="Usar POST /escuelas/escuelas/{cue}/cursos?usuario_id=ID_DIRECTOR"
+    )
 
 @router.get("/{idCurso}", response_model=CursoPublic)
 def read_curso(idCurso: int, session: SessionDep):
@@ -71,6 +72,19 @@ def delete_curso(idCurso: int, session: SessionDep):
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     return {"ok": True, "message": f"Curso {idCurso} eliminado correctamente"}
 
+@router.get("/{idCurso}/docentes", response_model=list[CursoDocentePublic])
+def get_docentes_de_curso(idCurso: int, session: SessionDep):
+    return listar_docentes_de_curso(session, idCurso)
+
+
+@router.post("/{idCurso}/docentes", response_model=CursoDocentePublic, status_code=201)
+def post_asignar_docente(
+    idCurso: int,
+    payload: CursoDocenteCreate,
+    director_id: int,  # query param: ?director_id=7
+    session: SessionDep,
+):
+    return asignar_docente_a_curso(session, idCurso, director_id, payload)
 
 
 

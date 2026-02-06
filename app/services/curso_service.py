@@ -1,15 +1,16 @@
 from typing import Annotated
 from sqlmodel import Session, and_, select
+from fastapi import HTTPException
 import logging
 from fastapi import Query
 from app.core.security import get_password_hash
 from app.models.curso import Curso
 from app.dependencies import SessionDep
 from app.models.rol import Rol
-
+from app.models.curso_docente import CursoDocente
 from app.models.escuela import Escuela
 from app.schemas.curso import CursoCreate, CursoUpdate
-from app.schemas.rol import RolEstado
+from app.schemas.rol import RolDescripcion, RolEstado
 from app.services.rol_service import get_one_rol
 
 logger = logging.getLogger()
@@ -58,15 +59,10 @@ def change_curso(curso_nuevo: CursoUpdate, curso_existente: Curso, db: SessionDe
 def get_cursos_by_usuario(db: SessionDep, idUsuario: int):
     statement = (
         select(Curso, Escuela)
-        .select_from(Curso)
-        .join(Rol, and_(Curso.idUsuario == Rol.idUsuario, Curso.CUE == Rol.CUE))  
+        .select_from(CursoDocente)
+        .join(Curso, CursoDocente.idCurso == Curso.idCurso)
         .join(Escuela, Escuela.CUE == Curso.CUE)
-        .where(
-            and_(
-                Rol.idUsuario == idUsuario,           
-                Rol.estado == RolEstado.Activo       
-            )
-        )
+        .where(CursoDocente.idUsuario == idUsuario)
     )
     return db.exec(statement).all()
 
@@ -75,5 +71,46 @@ def get_cursos_by_cue(db, cue: str):
     statement = (select(Curso).where(Curso.CUE == cue))
     return db.exec(statement).all()
 
+def add_curso_director(db: SessionDep, cue: str, idUsuarioDirector: int, curso: CursoCreate):
+    # 1️⃣ validar que sea director activo
+    rol = get_one_rol(idUsuarioDirector, cue, db)
 
+    if (
+        not rol
+        or rol.estado != RolEstado.Activo
+        or rol.descripcion != RolDescripcion.Director
+    ):
+        return None
+
+    # 2️⃣ validar curso único (CUE + ciclo + nombre + división + turno)
+    existente = db.exec(
+        select(Curso).where(
+            and_(
+                Curso.CUE == cue,
+                Curso.cicloLectivo == curso.cicloLectivo,
+                Curso.nombre == curso.nombre,
+                Curso.division == curso.division,
+                Curso.turno == curso.turno,
+            )
+        )
+    ).first()
+
+    if existente:
+        raise HTTPException(
+            status_code=409,
+            detail="Ya existe un curso con esos datos (turno incluido)."
+        )
+
+    db_curso = Curso(
+        nombre=curso.nombre,
+        cicloLectivo=curso.cicloLectivo,
+        division=curso.division,
+        CUE=cue,
+        password=get_password_hash(curso.password),
+    )
+
+    db.add(db_curso)
+    db.commit()
+    db.refresh(db_curso)
+    return db_curso
 

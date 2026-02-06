@@ -3,9 +3,10 @@ from sqlmodel import select
 from fastapi import APIRouter, HTTPException, Query
 from app.dependencies import SessionDep
 
-# Importamos los modelos y esquemas
 from app.models.escuela import Escuela
 from app.schemas.escuela import EscuelaCreate, EscuelaPublic, EscuelaUpdate
+from app.schemas.curso import CursoCreate, CursoPublic
+from app.services.curso_service import add_curso_director, get_cursos_by_cue
 
 router = APIRouter(prefix="/escuelas", tags=["Escuelas"])
 
@@ -68,3 +69,28 @@ def delete_escuela(cue: str, session: SessionDep):
     session.delete(db_escuela)
     session.commit()
     return {"ok": True, "message": f"Escuela con CUE {cue} eliminada correctamente"}
+
+@router.get("/escuelas/{cue}/cursos", response_model=list[CursoPublic])
+def listar_cursos_escuela(cue: str, session: SessionDep):
+    return get_cursos_by_cue(session, cue)
+
+
+@router.post("/escuelas/{cue}/cursos", response_model=CursoPublic, status_code=201)
+def crear_curso_escuela(
+    cue: str,
+    curso: CursoCreate,
+    usuario_id: int,
+    session: SessionDep
+):
+    nuevo = add_curso_director(
+        db=session,
+        cue=cue,
+        idUsuarioDirector=usuario_id,
+        curso=curso,
+    )
+    if not nuevo:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo un Director Activo puede crear cursos"
+        )
+    return nuevo
