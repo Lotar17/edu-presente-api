@@ -1,15 +1,15 @@
+# app/services/asistencia_service.py
 from datetime import date
 from typing import Annotated, Optional, Iterable
 
 from fastapi import HTTPException, Query
-from sqlmodel import select
+from sqlmodel import select, desc
 
 from app.dependencies import SessionDep
 from app.models.asistencia import Asistencia
 from app.models.alumno import Alumno
 from app.services.curso_service import get_one_curso
 from app.schemas.asistencia import AsistenciaCreate
-
 
 
 # Helpers
@@ -44,14 +44,9 @@ def ensure_alumnos_exist(db: SessionDep, ids_alumnos: Iterable[int]):
 
     stmt = select(Alumno.idAlumno).where(Alumno.idAlumno.in_(ids))
     existentes = set(db.exec(stmt).all())
-    # db.exec(stmt).all() devuelve lista de ints (idAlumno)
     faltantes = [i for i in ids if i not in existentes]
     if faltantes:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Alumnos inexistentes: {faltantes}"
-        )
-
+        raise HTTPException(status_code=404, detail=f"Alumnos inexistentes: {faltantes}")
 
 
 # Create / Upsert (uno)
@@ -82,7 +77,6 @@ def upsert_asistencia(db: SessionDep, payload: AsistenciaCreate) -> Asistencia:
     return nueva
 
 
-
 # Bulk Upsert (recomendado)
 
 
@@ -96,7 +90,6 @@ def upsert_asistencias_bulk(db: SessionDep, payloads: list[AsistenciaCreate]) ->
     if not payloads:
         return []
 
-    # Si el front manda todo de un curso/fecha, esto debería ser 1 solo curso.
     cursos_ids = list({p.idCurso for p in payloads})
     for cid in cursos_ids:
         ensure_curso_exists(db, cid)
@@ -122,7 +115,6 @@ def upsert_asistencias_bulk(db: SessionDep, payloads: list[AsistenciaCreate]) ->
         db.refresh(row)
 
     return out
-
 
 
 # Reads
@@ -151,6 +143,55 @@ def get_asistencias_by_curso(db: SessionDep, idCurso: int, offset: int, limit: A
         select(Asistencia)
         .where(Asistencia.idCurso == idCurso)
         .order_by(Asistencia.fecha.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return db.exec(stmt).all()
+
+
+def get_asistencias_by_alumno(db: SessionDep, idAlumno: int, offset: int = 0, limit: int = 200):
+    """
+    Historial de asistencias de un alumno (todas las fechas, todos los cursos).
+    """
+    ensure_alumno_exists(db, idAlumno)
+
+    stmt = (
+        select(Asistencia)
+        .where(Asistencia.idAlumno == idAlumno)
+        .order_by(desc(Asistencia.fecha))
+        .offset(offset)
+        .limit(limit)
+    )
+    return db.exec(stmt).all()
+
+
+def get_asistencias_by_curso_alumno(
+    db: SessionDep,
+    idCurso: int,
+    idAlumno: int,
+    anio: Optional[int] = None,
+    offset: int = 0,
+    limit: int = 200,
+):
+    """
+    ✅ Historial de asistencias para un alumno dentro de un curso.
+    (Opcional) filtra por año.
+    """
+    ensure_curso_exists(db, idCurso)
+    ensure_alumno_exists(db, idAlumno)
+
+    stmt = select(Asistencia).where(
+        Asistencia.idCurso == idCurso,
+        Asistencia.idAlumno == idAlumno,
+    )
+
+    if anio:
+        desde = date(anio, 1, 1)
+        hasta = date(anio, 12, 31)
+        stmt = stmt.where(Asistencia.fecha >= desde, Asistencia.fecha <= hasta)
+
+    stmt = (
+        stmt.order_by(desc(Asistencia.fecha))
         .offset(offset)
         .limit(limit)
     )
