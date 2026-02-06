@@ -11,12 +11,15 @@ class EscuelaBase(SQLModel):
     nivel_educativo: str = Field(max_length=255)
     matricula: str = Field(max_length=255)
     direccion: str = Field(max_length=255)
-    localidad: str | None = None
-    provincia: str | None = None
+    localidad: str | None = Field(default=None, max_length=255)
+    provincia: str | None = Field(default=None, max_length=255)
     codigo_postal: str = Field(max_length=255)
     codigo_provincial: str = Field(max_length=255)
     telefono: str = Field(max_length=15)
     correo_electronico: str = Field(index=True,max_length=255)
+    provincia_id: str | None = Field(default=None, max_length=10)
+    localidad_id: str | None = Field(default=None, max_length=20)
+
 
 class EscuelaPublic(EscuelaBase):
     CUE: str
@@ -40,5 +43,7 @@ class EscuelaUpdate(SQLModel):
     codigo_provincial: str | None= None
     telefono: str | None= None
     correo_electronico: str | None= None
+    provincia_id: str = Field(max_length=10)
+    localidad_id: str = Field(max_length=20)
 
 
