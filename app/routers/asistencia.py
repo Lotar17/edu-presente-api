@@ -3,8 +3,8 @@ from datetime import date
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from app.dependencies import SessionDep
 
+from app.dependencies import SessionDep
 from app.schemas.asistencia import AsistenciaCreate
 from app.services.asistencia_service import (
     upsert_asistencia,
@@ -14,10 +14,19 @@ from app.services.asistencia_service import (
     get_asistencias_by_curso,
     get_asistencias_by_alumno,
     get_asistencias_by_curso_alumno,
+    stats_resumen,
+    stats_serie,
+    stats_distribucion_inasistencias,
+    stats_riesgo_por_curso,
+    stats_lluvia_comparativo,
 )
 
 router = APIRouter(prefix="/asistencias", tags=["Asistencias"])
 
+
+# ==========================
+# Create / Upsert
+# ==========================
 
 @router.post("/", response_model=AsistenciaCreate)
 def create_or_update_asistencia(payload: AsistenciaCreate, session: SessionDep):
@@ -46,13 +55,129 @@ def create_or_update_asistencias_bulk(payloads: list[AsistenciaCreate], session:
     ]
 
 
-# 🔴 MÁS ESPECÍFICA
+# ==========================
+# ✅ Estadísticas (Director)
+# ==========================
+
+@router.get("/stats/resumen")
+def read_stats_resumen(
+    session: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    cursoIds: Optional[list[int]] = Query(default=None),
+    curso_ids: Optional[list[int]] = Query(default=None),
+    umbral: int = Query(default=20, ge=1),
+    umbral_riesgo: int = Query(default=20, ge=1),
+):
+    cursos = cursoIds if cursoIds is not None else curso_ids
+    umb = umbral if umbral is not None else umbral_riesgo
+
+    return stats_resumen(
+        db=session,
+        cue=cue,
+        desde=desde,
+        hasta=hasta,
+        curso_ids=cursos,
+        umbral_riesgo=umb,
+    )
+
+
+@router.get("/stats/serie")
+def read_stats_serie(
+    session: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    group_by: str = Query(default="day", alias="groupBy", pattern="^(day|week|month)$"),
+    curso_ids: Optional[list[int]] = Query(default=None, alias="cursoIds"),
+    solo_lluvia: Optional[bool] = Query(default=None, alias="soloLluvia"),
+):
+    return stats_serie(
+        db=session,
+        cue=cue,
+        desde=desde,
+        hasta=hasta,
+        group_by=group_by,
+        curso_ids=curso_ids,
+        solo_lluvia=solo_lluvia,
+    )
+
+
+
+
+@router.get("/stats/distribucion")
+def read_stats_distribucion(
+    session: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    cursoIds: Optional[list[int]] = Query(default=None),
+    curso_ids: Optional[list[int]] = Query(default=None),
+):
+    cursos = cursoIds if cursoIds is not None else curso_ids
+
+    return stats_distribucion_inasistencias(
+        db=session,
+        cue=cue,
+        desde=desde,
+        hasta=hasta,
+        curso_ids=cursos,
+    )
+
+
+@router.get("/stats/riesgo")
+def read_stats_riesgo_por_curso(
+    session: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    umbral: int = Query(default=20, ge=1),
+    cursoIds: Optional[list[int]] = Query(default=None),
+    curso_ids: Optional[list[int]] = Query(default=None),
+):
+    cursos = cursoIds if cursoIds is not None else curso_ids
+
+    return stats_riesgo_por_curso(
+        db=session,
+        cue=cue,
+        desde=desde,
+        hasta=hasta,
+        umbral=umbral,
+        curso_ids=cursos,
+    )
+
+
+@router.get("/stats/lluvia")
+def read_stats_lluvia(
+    session: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    cursoIds: Optional[list[int]] = Query(default=None),
+    curso_ids: Optional[list[int]] = Query(default=None),
+):
+    cursos = cursoIds if cursoIds is not None else curso_ids
+
+    return stats_lluvia_comparativo(
+        db=session,
+        cue=cue,
+        desde=desde,
+        hasta=hasta,
+        curso_ids=cursos,
+    )
+
+
+# ==========================
+# Reads (más específicas arriba)
+# ==========================
+
 @router.get("/one/{idCurso}/{idAlumno}/{fecha}", response_model=AsistenciaCreate)
 def read_one_asistencia(
     idCurso: int,
     idAlumno: int,
     fecha: date,
-    session: SessionDep
+    session: SessionDep,
 ):
     row = get_one_asistencia(db=session, idCurso=idCurso, idAlumno=idAlumno, fecha=fecha)
     if not row:
@@ -67,7 +192,6 @@ def read_one_asistencia(
     )
 
 
-# ✅ HISTORIAL POR CURSO + ALUMNO (opcional por año) — para "curso actual" del alumno
 @router.get("/curso/{idCurso}/alumno/{idAlumno}", response_model=list[AsistenciaCreate])
 def read_asistencias_by_curso_alumno(
     idCurso: int,
@@ -97,13 +221,12 @@ def read_asistencias_by_curso_alumno(
     ]
 
 
-# ✅ HISTORIAL POR ALUMNO (todos los cursos)
 @router.get("/alumno/{idAlumno}", response_model=list[AsistenciaCreate])
 def read_asistencias_by_alumno(
     idAlumno: int,
     session: SessionDep,
     offset: int = 0,
-    limit: Annotated[int, Query(le=500)] = 200
+    limit: Annotated[int, Query(le=500)] = 200,
 ):
     rows = get_asistencias_by_alumno(db=session, idAlumno=idAlumno, offset=offset, limit=limit)
     return [
@@ -118,13 +241,12 @@ def read_asistencias_by_alumno(
     ]
 
 
-# 🟡 HISTORIAL POR CURSO (todas las fechas)
 @router.get("/curso/{idCurso}", response_model=list[AsistenciaCreate])
 def read_asistencias_by_curso(
     idCurso: int,
     session: SessionDep,
     offset: int = 0,
-    limit: Annotated[int, Query(le=200)] = 100
+    limit: Annotated[int, Query(le=200)] = 100,
 ):
     rows = get_asistencias_by_curso(db=session, idCurso=idCurso, offset=offset, limit=limit)
     return [
@@ -139,12 +261,11 @@ def read_asistencias_by_curso(
     ]
 
 
-# 🔵 LA MÁS GENÉRICA SIEMPRE AL FINAL
 @router.get("/{idCurso}/{fecha}", response_model=list[AsistenciaCreate])
 def read_asistencias_by_curso_fecha(
     idCurso: int,
     fecha: date,
-    session: SessionDep
+    session: SessionDep,
 ):
     rows = get_asistencias_by_curso_fecha(db=session, idCurso=idCurso, fecha=fecha)
     return [

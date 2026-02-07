@@ -1,19 +1,24 @@
 # app/services/asistencia_service.py
+from __future__ import annotations
+
 from datetime import date
 from typing import Annotated, Optional, Iterable
 
 from fastapi import HTTPException, Query
 from sqlmodel import select, desc
+from sqlalchemy import func, case, and_
 
 from app.dependencies import SessionDep
 from app.models.asistencia import Asistencia
 from app.models.alumno import Alumno
+from app.models.curso import Curso  # ✅ necesario para filtrar por CUE (escuela)
 from app.services.curso_service import get_one_curso
 from app.schemas.asistencia import AsistenciaCreate
 
 
+# ==========================
 # Helpers
-
+# ==========================
 
 def get_one_asistencia(db: SessionDep, idCurso: int, idAlumno: int, fecha: date) -> Optional[Asistencia]:
     return db.get(Asistencia, (idCurso, idAlumno, fecha))
@@ -49,8 +54,9 @@ def ensure_alumnos_exist(db: SessionDep, ids_alumnos: Iterable[int]):
         raise HTTPException(status_code=404, detail=f"Alumnos inexistentes: {faltantes}")
 
 
+# ==========================
 # Create / Upsert (uno)
-
+# ==========================
 
 def upsert_asistencia(db: SessionDep, payload: AsistenciaCreate) -> Asistencia:
     """
@@ -77,8 +83,9 @@ def upsert_asistencia(db: SessionDep, payload: AsistenciaCreate) -> Asistencia:
     return nueva
 
 
+# ==========================
 # Bulk Upsert (recomendado)
-
+# ==========================
 
 def upsert_asistencias_bulk(db: SessionDep, payloads: list[AsistenciaCreate]) -> list[Asistencia]:
     """
@@ -117,8 +124,9 @@ def upsert_asistencias_bulk(db: SessionDep, payloads: list[AsistenciaCreate]) ->
     return out
 
 
+# ==========================
 # Reads
-
+# ==========================
 
 def get_asistencias_by_curso_fecha(db: SessionDep, idCurso: int, fecha: date):
     """
@@ -196,3 +204,355 @@ def get_asistencias_by_curso_alumno(
         .limit(limit)
     )
     return db.exec(stmt).all()
+
+
+# ==========================
+# Estadísticas (Director)
+# ==========================
+
+def _base_where(
+    cue: str,
+    desde: date,
+    hasta: date,
+    curso_ids: Optional[list[int]] = None,
+    solo_lluvia: Optional[bool] = None,
+):
+    """
+    Filtros base. Filtramos por escuela via Curso.CUE y join por idCurso.
+    """
+    filters = [
+        Curso.CUE == cue,
+        Asistencia.fecha >= desde,
+        Asistencia.fecha <= hasta,
+        Asistencia.idCurso == Curso.idCurso,  # join
+    ]
+    if curso_ids:
+        filters.append(Asistencia.idCurso.in_(curso_ids))
+    if solo_lluvia is True:
+        filters.append(Asistencia.lluvia.is_(True))
+    if solo_lluvia is False:
+        filters.append(Asistencia.lluvia.is_(False))
+    return filters
+
+
+def stats_resumen(
+    db: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    curso_ids: Optional[list[int]] = None,
+    umbral_riesgo: int = 20,
+):
+    """
+    KPIs globales + Top cursos por ausentismo.
+    Regla: "Tarde cuenta como Presente" (pero se reporta separado).
+    """
+    where = _base_where(cue, desde, hasta, curso_ids)
+
+    presentes_expr = case((Asistencia.estado.in_(["Presente", "Tarde"]), 1), else_=0)
+    ausentes_expr = case((Asistencia.estado == "Ausente", 1), else_=0)
+    tardes_expr = case((Asistencia.estado == "Tarde", 1), else_=0)
+
+    stmt = (
+        select(
+            func.sum(presentes_expr).label("presentes"),
+            func.sum(ausentes_expr).label("ausentes"),
+            func.sum(tardes_expr).label("tardes"),
+            func.count().label("total_registros"),
+            func.count(func.distinct(Asistencia.idAlumno)).label("alumnos_distintos"),
+        )
+        .select_from(Asistencia, Curso)
+        .where(and_(*where))
+    )
+
+    row = db.exec(stmt).one()
+    presentes = int(row.presentes or 0)
+    ausentes = int(row.ausentes or 0)
+    tardes = int(row.tardes or 0)
+    total = int(row.total_registros or 0)
+    alumnos_distintos = int(row.alumnos_distintos or 0)
+
+    asistencia_pct = round((presentes / total) * 100, 2) if total else 0.0
+
+    # Riesgo global (alumnos con >= umbral ausencias)
+    sub = (
+        select(
+            Asistencia.idAlumno.label("idAlumno"),
+            func.sum(ausentes_expr).label("faltas"),
+        )
+        .select_from(Asistencia, Curso)
+        .where(and_(*where))
+        .group_by(Asistencia.idAlumno)
+        .subquery()
+    )
+
+    alumnos_riesgo = int(db.exec(select(func.count()).select_from(sub).where(sub.c.faltas >= umbral_riesgo)).one() or 0)
+    riesgo_pct = round((alumnos_riesgo / alumnos_distintos) * 100, 2) if alumnos_distintos else 0.0
+
+    # Top cursos por % ausentes
+    stmt_cursos = (
+        select(
+            Curso.idCurso,
+            Curso.nombre,
+            Curso.cicloLectivo,
+            Curso.division,
+            func.sum(ausentes_expr).label("ausentes"),
+            func.sum(tardes_expr).label("tardes"),
+            func.count().label("total"),
+        )
+        .select_from(Asistencia, Curso)
+        .where(and_(*where))
+        .group_by(Curso.idCurso, Curso.nombre, Curso.cicloLectivo, Curso.division)
+    )
+
+    cursos = db.exec(stmt_cursos).all()
+    cursos_out = []
+    for c in cursos:
+        total_c = int(c.total or 0)
+        aus_c = int(c.ausentes or 0)
+        tar_c = int(c.tardes or 0)
+        aus_pct = round((aus_c / total_c) * 100, 2) if total_c else 0.0
+        cursos_out.append({
+            "idCurso": c.idCurso,
+            "curso": f"{c.nombre} {c.division} ({c.cicloLectivo})",
+            "ausentes": aus_c,
+            "tardes": tar_c,
+            "total": total_c,
+            "ausentismoPct": aus_pct,
+        })
+    cursos_out.sort(key=lambda x: x["ausentismoPct"], reverse=True)
+
+    return {
+        "desde": str(desde),
+        "hasta": str(hasta),
+        "kpis": {
+            "presentes": presentes,
+            "ausentes": ausentes,
+            "tardes": tardes,
+            "totalRegistros": total,
+            "asistenciaPct": asistencia_pct,
+            "alumnosDistintos": alumnos_distintos,
+            "alumnosRiesgo": alumnos_riesgo,
+            "riesgoPct": riesgo_pct,
+        },
+        "topCursosAusentismo": cursos_out[:5],
+    }
+
+
+def stats_serie(
+    db: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    group_by: str = "day",
+    curso_ids: Optional[list[int]] = None,
+    solo_lluvia: Optional[bool] = None,
+):
+    """
+    Serie temporal agrupada por day/week/month.
+    MySQL: usamos DATE_FORMAT.
+    """
+    where = _base_where(cue, desde, hasta, curso_ids, solo_lluvia)
+
+    presentes_expr = case((Asistencia.estado.in_(["Presente", "Tarde"]), 1), else_=0)
+    ausentes_expr = case((Asistencia.estado == "Ausente", 1), else_=0)
+    tardes_expr = case((Asistencia.estado == "Tarde", 1), else_=0)
+
+    if group_by == "month":
+        bucket = func.date_format(Asistencia.fecha, "%Y-%m").label("bucket")
+    elif group_by == "week":
+        bucket = func.date_format(Asistencia.fecha, "%x-W%v").label("bucket")
+    else:
+        bucket = func.date_format(Asistencia.fecha, "%Y-%m-%d").label("bucket")
+
+    stmt = (
+        select(
+            bucket,
+            func.sum(presentes_expr).label("presentes"),
+            func.sum(ausentes_expr).label("ausentes"),
+            func.sum(tardes_expr).label("tardes"),
+            func.count().label("total"),
+        )
+        .select_from(Asistencia, Curso)
+        .where(and_(*where))
+        .group_by(bucket)
+        .order_by(bucket)
+    )
+
+    rows = db.exec(stmt).all()
+    out = []
+    for r in rows:
+        total = int(r.total or 0)
+        pres = int(r.presentes or 0)
+        aus = int(r.ausentes or 0)
+        tar = int(r.tardes or 0)
+        asistencia_pct = round((pres / total) * 100, 2) if total else 0.0
+        out.append({
+            "bucket": r.bucket,
+            "presentes": pres,
+            "ausentes": aus,
+            "tardes": tar,
+            "total": total,
+            "asistenciaPct": asistencia_pct,
+        })
+    return out
+
+
+def stats_distribucion_inasistencias(
+    db: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    curso_ids: Optional[list[int]] = None,
+    buckets: Optional[list[tuple[int, int | None]]] = None,
+):
+    """
+    Distribución de ALUMNOS por rangos de AUSENCIAS (solo 'Ausente').
+    Por defecto:
+      0-10, 11-20, 21-30, 31-44, 45-56, 57+
+    """
+    if buckets is None:
+        buckets = [(0, 10), (11, 20), (21, 30), (31, 44), (45, 56), (57, None)]
+
+    where = _base_where(cue, desde, hasta, curso_ids)
+    ausentes_expr = case((Asistencia.estado == "Ausente", 1), else_=0)
+
+    sub = (
+        select(
+            Asistencia.idAlumno.label("idAlumno"),
+            func.sum(ausentes_expr).label("faltas"),
+        )
+        .select_from(Asistencia, Curso)
+        .where(and_(*where))
+        .group_by(Asistencia.idAlumno)
+        .subquery()
+    )
+
+    total_alumnos = int(db.exec(select(func.count()).select_from(sub)).one() or 0)
+
+    out = []
+    for a, b in buckets:
+        if b is None:
+            stmt = select(func.count()).select_from(sub).where(sub.c.faltas >= a)
+            label = f"{a}+"
+        else:
+            stmt = select(func.count()).select_from(sub).where(sub.c.faltas >= a, sub.c.faltas <= b)
+            label = f"{a}-{b}"
+
+        n = int(db.exec(stmt).one() or 0)
+        pct = round((n / total_alumnos) * 100, 2) if total_alumnos else 0.0
+        out.append({"rango": label, "alumnos": n, "pct": pct})
+
+    return {"totalAlumnos": total_alumnos, "distribucion": out}
+
+
+def stats_riesgo_por_curso(
+    db: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    umbral: int = 20,
+    curso_ids: Optional[list[int]] = None,
+):
+    """
+    Para cada curso: cuántos alumnos tienen >= umbral AUSENCIAS.
+    """
+    where = _base_where(cue, desde, hasta, curso_ids)
+    ausentes_expr = case((Asistencia.estado == "Ausente", 1), else_=0)
+
+    sub = (
+        select(
+            Asistencia.idCurso.label("idCurso"),
+            Asistencia.idAlumno.label("idAlumno"),
+            func.sum(ausentes_expr).label("faltas"),
+        )
+        .select_from(Asistencia, Curso)
+        .where(and_(*where))
+        .group_by(Asistencia.idCurso, Asistencia.idAlumno)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            Curso.idCurso,
+            Curso.nombre,
+            Curso.cicloLectivo,
+            Curso.division,
+            func.count().label("alumnosRiesgo"),
+        )
+        .select_from(sub, Curso)
+        .where(
+            and_(
+                sub.c.idCurso == Curso.idCurso,
+                Curso.CUE == cue,
+                sub.c.faltas >= umbral,
+            )
+        )
+        .group_by(Curso.idCurso, Curso.nombre, Curso.cicloLectivo, Curso.division)
+        .order_by(func.count().desc())
+    )
+
+    rows = db.exec(stmt).all()
+    return [
+        {
+            "idCurso": r.idCurso,
+            "curso": f"{r.nombre} {r.division} ({r.cicloLectivo})",
+            "alumnosRiesgo": int(r.alumnosRiesgo or 0),
+        }
+        for r in rows
+    ]
+
+
+def stats_lluvia_comparativo(
+    db: SessionDep,
+    cue: str,
+    desde: date,
+    hasta: date,
+    curso_ids: Optional[list[int]] = None,
+):
+    """
+    Comparativo lluvia vs sin lluvia:
+    - asistenciaPct
+    - ausentismoPct
+    - tardes (separado)
+    """
+    def calc(solo_lluvia: bool):
+        where = _base_where(cue, desde, hasta, curso_ids, solo_lluvia=solo_lluvia)
+
+        presentes_expr = case((Asistencia.estado.in_(["Presente", "Tarde"]), 1), else_=0)
+        ausentes_expr = case((Asistencia.estado == "Ausente", 1), else_=0)
+        tardes_expr = case((Asistencia.estado == "Tarde", 1), else_=0)
+
+        stmt = (
+            select(
+                func.sum(presentes_expr).label("presentes"),
+                func.sum(ausentes_expr).label("ausentes"),
+                func.sum(tardes_expr).label("tardes"),
+                func.count().label("total"),
+            )
+            .select_from(Asistencia, Curso)
+            .where(and_(*where))
+        )
+
+        r = db.exec(stmt).one()
+        total = int(r.total or 0)
+        pres = int(r.presentes or 0)
+        aus = int(r.ausentes or 0)
+        tar = int(r.tardes or 0)
+
+        asistencia_pct = round((pres / total) * 100, 2) if total else 0.0
+        ausentismo_pct = round((aus / total) * 100, 2) if total else 0.0
+
+        return {
+            "total": total,
+            "presentes": pres,
+            "ausentes": aus,
+            "tardes": tar,
+            "asistenciaPct": asistencia_pct,
+            "ausentismoPct": ausentismo_pct,
+        }
+
+    return {
+        "lluvia": calc(True),
+        "sinLluvia": calc(False),
+    }
