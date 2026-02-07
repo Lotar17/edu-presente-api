@@ -4,6 +4,7 @@ from sqlmodel import SQLModel, Field
 class TurnoCurso(str, Enum):
     Manana = "Manana"
     Tarde = "Tarde"
+    DobleTurno = "Doble Turno"
 
 class CursoBase(SQLModel):
     nombre: str = Field(max_length=255)
@@ -22,7 +23,7 @@ class CursoUpdate(SQLModel):
     nombre: str | None = None
     cicloLectivo: str | None = None
     division: str | None = None
-    turno: TurnoCurso
+    turno: TurnoCurso | None = None
     password: str | None = None
 
 
